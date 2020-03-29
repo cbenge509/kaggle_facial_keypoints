@@ -10,7 +10,7 @@ Section 5 - Wed. 4:00pm PDT
 
 ## Description
 
-This repo contains a solution for the [Kaggle Facial Keypoints Detection]([https://www.kaggle.com/c/facial-keypoints-detection](https://www.kaggle.com/c/facial-keypoints-detection)) challenge, developed by Cristopher Benge (U.C. Berkeley) and William Casey King (Yale University, U.C. Berkeley).  This solution leverages a variety of neural network architectures and a custom K-fold generalized stacker to achieve a top 5 score.
+This repo contains a solution for the [Kaggle Facial Keypoints Detection](https://www.kaggle.com/c/facial-keypoints-detection) challenge, developed by Cristopher Benge (U.C. Berkeley) and William Casey King (Yale University, U.C. Berkeley).  This solution leverages a variety of neural network architectures and a custom K-fold generalized stacker to achieve a top 5 score.
 
 #### Highlight of key files included in this repository:
 
