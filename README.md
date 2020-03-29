@@ -9,7 +9,7 @@ Section 5 - Wed. 4:00pm PDT
 
 This repo contains a solution for the [Kaggle Facial Keypoints Detection]([https://www.kaggle.com/c/facial-keypoints-detection](https://www.kaggle.com/c/facial-keypoints-detection)) challenge, achieving a best score of **~1.42 RMSE**, which is good for a 4th place position on the [now locked] private leaderboard:
 
-![img]([https://github.com/cbenge509/kaggle_facial_keypoints](https://github.com/cbenge509/kaggle_facial_keypoints)/images/top10.JPG)
+![img](/images/top10.jpg)
 
 ## Evaluation Criteria
 
