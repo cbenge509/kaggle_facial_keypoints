@@ -8,7 +8,7 @@ Facial Keypoints Detection
 
 U.C. Berkeley, Masters in Information & Data Science program - [datascience@berkeley](https://datascience.berkeley.edu/) 
 
-Spring 2020, W207 - Machine Learning - D. Schioberg, PhD
+Spring 2020, W207 - Machine Learning - D. Schioberg, PhD <br>
 Section 5 - Wed. 4:00pm PDT
 
 ## Description
