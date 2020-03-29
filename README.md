@@ -17,12 +17,10 @@ The Kaggle facial keypoints detection challenge asks competitors to identify, wi
 
 The competition is ranked by the lowest error in prediction by the [Root Mean Squared Error](https://en.wikipedia.org/wiki/Root-mean-square_deviation):
 
-$$
-\sqrt{\left(\frac{1}{n}\right)\sum_{i=1}^{n}(y_{i} - x_{i})^{2}}
-$$
+<img src="/images/rmse.jpg" width="400" />
 
 ## Training Pipeline
-![train pipeline](/images/train_pipeline.png)
+![train pipeline](/images/train_pipeline.jpg)
 
 ## Inference Pipeline
-![inference pipeline](/images/inference_pipeline.png)
+![inference pipeline](/images/inference_pipeline.jpg)
