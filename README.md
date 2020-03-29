@@ -3,6 +3,7 @@ Facial Keypoints Detection
 ![GitHub](https://img.shields.io/github/license/cbenge509/kaggle_facial_keypoints)
 
 <img align="right" width="180" src="./images/ucb.png"/>
+
 #### Authors : [Cristopher Benge](https://cbenge509.github.io/) | [William Casey King](https://jackson.yale.edu/person/casey-king/) 
 
 U.C. Berkeley, Masters in Information & Data Science program - [datascience@berkeley](https://datascience.berkeley.edu/) 
