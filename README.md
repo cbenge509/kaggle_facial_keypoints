@@ -1,6 +1,6 @@
 Facial Keypoints Detection
 ===========================
-**Authors** : [Cristopher Benge](https://cbenge509.github.io/) | [William Casey King](https://jackson.yale.edu/person/casey-king/) 
+##### Authors : [Cristopher Benge](https://cbenge509.github.io/) | [William Casey King](https://jackson.yale.edu/person/casey-king/) 
 
 U.C. Berkeley, Masters in Information & Data Science program - [datascience@berkeley](https://datascience.berkeley.edu/) 
 
@@ -8,7 +8,23 @@ Spring 2020, W207 - Machine Learning - D. Schioberg, PhD
 
 Section 5 - Wed. 4:00pm PDT
 
-## Description
+#### Description of key files included in this repository:
+
+  |File | Description |
+  |:----|:------------|
+  |[Facial Keypoints - EDA.ipynb](Facial%20Keypoints%20-%20EDA.ipynb) | Jupyter Notebook containing exploratory data analysis findings of the competition data.|
+  |[prepare_data.py](prepare_data.py) | Performs preprocessing of TRAIN and TEST datasets.|
+  |[train_model.py](train_model.py) | Trains one or more models based on user-provided arguments.|
+  |[predict.py](predict.py) | Predict from last trained version of one or more user-specified models.|
+  |[train_stack.py](train_stack.py) | Performs K-Fold generalized stacking using the user-specified models.|
+  |[predict_stack.py](train_stack.py) | Performs metaregressor traning and prediction from all stacked model files.|
+  |[generate_submission.py](prepare_data.py) | Generates submissions of individual models by combining the 8-only and Not-8-ony predictions.|
+  |[data_loader.py](/utils/data_loader.py) | Utility class used for loading the competition dataframes.|
+  |[data_transformer.py](/utils/data_transformer.py) | Utility class for performing data cleaning and augmentation.|
+  |[model_zoo.py](utils/model_zoo.py) | Utility class; provides model construction from the model zoo construction and base prediction routines.|
+  
+
+## Performance
 
 This repo contains a solution for the [Kaggle Facial Keypoints Detection]([https://www.kaggle.com/c/facial-keypoints-detection](https://www.kaggle.com/c/facial-keypoints-detection)) challenge, achieving a best score of **~1.42 RMSE**, which is good for a 4th place position on the [now locked] private leaderboard:
 
@@ -21,6 +37,10 @@ The Kaggle facial keypoints detection challenge asks competitors to identify, wi
 The competition is ranked by the lowest error in prediction by the [Root Mean Squared Error](https://en.wikipedia.org/wiki/Root-mean-square_deviation):
 
 <img src="/images/rmse.jpg" width="400" />
+
+# Solution Description
+
+The dataset provided by the 
 
 ## Training Pipeline
 ![train pipeline](/images/train_pipeline.jpg)
