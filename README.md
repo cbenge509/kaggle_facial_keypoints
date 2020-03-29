@@ -8,7 +8,11 @@ Spring 2020, W207 - Machine Learning - D. Schioberg, PhD
 
 Section 5 - Wed. 4:00pm PDT
 
-#### Description of key files included in this repository:
+## Description
+
+This repo contains a solution for the [Kaggle Facial Keypoints Detection]([https://www.kaggle.com/c/facial-keypoints-detection](https://www.kaggle.com/c/facial-keypoints-detection)) challenge, developed by Cristopher Benge (U.C. Berkeley) and William Casey King (Yale University, U.C. Berkeley).  This solution leverages a variety of neural network architectures and a custom K-fold generalized stacker to achieve a top 5 score.
+
+#### Highlight of key files included in this repository:
 
   |File | Description |
   |:----|:------------|
@@ -26,7 +30,7 @@ Section 5 - Wed. 4:00pm PDT
 
 ## Performance
 
-This repo contains a solution for the [Kaggle Facial Keypoints Detection]([https://www.kaggle.com/c/facial-keypoints-detection](https://www.kaggle.com/c/facial-keypoints-detection)) challenge, achieving a best score of **~1.42 RMSE**, which is good for a 4th place position on the [now locked] private leaderboard:
+This solution achieves a best score of **~1.42 RMSE**, which is good for a 4th place position on the [now locked] private leaderboard:
 
 <img src="/images/top10.jpg" width="400"/>
 
@@ -37,10 +41,6 @@ The Kaggle facial keypoints detection challenge asks competitors to identify, wi
 The competition is ranked by the lowest error in prediction by the [Root Mean Squared Error](https://en.wikipedia.org/wiki/Root-mean-square_deviation):
 
 <img src="/images/rmse.jpg" width="400" />
-
-# Solution Description
-
-The dataset provided by the 
 
 ## Training Pipeline
 ![train pipeline](/images/train_pipeline.jpg)
