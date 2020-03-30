@@ -87,6 +87,12 @@ Following K-Fold training of the seven models for both the "complete" TRAIN data
 
 The inferencing pipeline behavior is essentially duplicative of the training process above, with the exception that TEST is also split based on whether we are scored on finding 4 keypoints (8 labels) or NOT 4 keypoints (Not 8 labels).  These images are inferenced through all sevel Level 1 models, combined, feature interactions are calculated, and a final submission inference is taken from the Level 2 MultiTaskElasticNet linear regressor.
 
+## Generalized Stacking
+
+![train pipeline](/images/kfold_stacking.png)
+
+Stacked generalization was used to leverage the strengths of each model to produce a final prediction.  To avoid overfitting our level-1 regressors, we used K-fold (K=5) cross-validation which added necessary regularization to our final metaregressor.  At each k-th iteration, one k fold is held out to act as the validation set for training.  The predictions from each model on each k-th interval are stored and used at training time for the final metaregressor.  Prior to final metaregressor training, simple multiplication feature interactions are added on each of the 30 (or 8) predictions made by the level-1 regressors.  Finally, the linear metaregressor is fit to all values and used to predict the final submission values. 
+
 Models Architectures
 =====================
 
