@@ -1,6 +1,7 @@
 Facial Keypoints Detection
 ===========================
-![GitHub](https://img.shields.io/github/license/cbenge509/kaggle_facial_keypoints)
+
+![GitHub](https://img.shields.io/github/license/cbenge509/kaggle_facial_keypoints) ![GitHub Pipenv locked dependency version](https://img.shields.io/github/pipenv/locked/dependency-version/cbenge509/kaggle_facial_keypoints/tensorflow) ![GitHub Pipenv locked dependency version](https://img.shields.io/github/pipenv/locked/dependency-version/cbenge509/kaggle_facial_keypoints/keras)
 
 <img align="right" width="180" src="./images/ucb.png"/>
 
