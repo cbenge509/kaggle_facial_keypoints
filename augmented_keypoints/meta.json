@@ -1,0 +1,235 @@
+{
+  "classes": [
+    {
+      "title": "Facial Keypoints",
+      "shape": "graph",
+      "color": "#D0021B",
+      "geometry_config": {
+        "edges": [
+          {
+            "dst": "1b26947e-696d-463f-9a6c-fed69a210c02",
+            "src": "025c93b7-3915-46cd-9a33-d15a7d9e30cc",
+            "label": ""
+          },
+          {
+            "dst": "300e944e-dad7-492d-8414-218efcb4d5ca",
+            "src": "1b26947e-696d-463f-9a6c-fed69a210c02",
+            "label": ""
+          },
+          {
+            "dst": "300e944e-dad7-492d-8414-218efcb4d5ca",
+            "src": "7ad28d39-8096-431b-8046-240af0d6943b",
+            "label": ""
+          },
+          {
+            "dst": "f4e1b88e-1031-48ab-8d46-9b82b17f1fff",
+            "src": "7ad28d39-8096-431b-8046-240af0d6943b",
+            "label": ""
+          },
+          {
+            "dst": "3c9f2ef3-0285-41f1-ba83-f189de1dfeb1",
+            "src": "fc30af35-189a-40af-8a4a-41642b91c1cb",
+            "label": ""
+          },
+          {
+            "dst": "3c9f2ef3-0285-41f1-ba83-f189de1dfeb1",
+            "src": "ce35810e-c0a9-4a17-ab09-7d0171e5d1bc",
+            "label": ""
+          },
+          {
+            "dst": "ce35810e-c0a9-4a17-ab09-7d0171e5d1bc",
+            "src": "e468bd2b-b248-4494-9472-99869c36ce4b",
+            "label": ""
+          },
+          {
+            "dst": "43d9efd0-9fe3-4487-950e-cd884469c471",
+            "src": "e468bd2b-b248-4494-9472-99869c36ce4b",
+            "label": ""
+          },
+          {
+            "dst": "fc30af35-189a-40af-8a4a-41642b91c1cb",
+            "src": "f4e1b88e-1031-48ab-8d46-9b82b17f1fff",
+            "label": ""
+          },
+          {
+            "dst": "8d257a0c-851d-4114-b6ff-7679fadcda41",
+            "src": "3c9f2ef3-0285-41f1-ba83-f189de1dfeb1",
+            "label": ""
+          },
+          {
+            "dst": "e6142152-b6f9-440a-b60b-bb705b1945b5",
+            "src": "8d257a0c-851d-4114-b6ff-7679fadcda41",
+            "label": ""
+          },
+          {
+            "dst": "0c0511ea-cf54-43e4-babe-debebf514b4f",
+            "src": "e6142152-b6f9-440a-b60b-bb705b1945b5",
+            "label": ""
+          },
+          {
+            "dst": "e6142152-b6f9-440a-b60b-bb705b1945b5",
+            "src": "c515bcd7-cef7-495a-a3ae-c4e60567bef1",
+            "label": ""
+          },
+          {
+            "dst": "d22d0a23-dc85-4c79-95ab-c188828b63cd",
+            "src": "c515bcd7-cef7-495a-a3ae-c4e60567bef1",
+            "label": ""
+          },
+          {
+            "dst": "0c0511ea-cf54-43e4-babe-debebf514b4f",
+            "src": "d22d0a23-dc85-4c79-95ab-c188828b63cd",
+            "label": ""
+          },
+          {
+            "dst": "7ad28d39-8096-431b-8046-240af0d6943b",
+            "src": "8d257a0c-851d-4114-b6ff-7679fadcda41",
+            "label": ""
+          }
+        ],
+        "nodes": {
+          "ce35810e-c0a9-4a17-ab09-7d0171e5d1bc": {
+            "label": "left eye center",
+            "color": "#D0021B",
+            "loc": [
+              541,
+              129
+            ]
+          },
+          "e468bd2b-b248-4494-9472-99869c36ce4b": {
+            "label": "left eye outer",
+            "color": "#F5A623",
+            "loc": [
+              599,
+              133
+            ]
+          },
+          "3c9f2ef3-0285-41f1-ba83-f189de1dfeb1": {
+            "label": "left eye inner",
+            "color": "#F8E71C",
+            "loc": [
+              487,
+              128
+            ]
+          },
+          "43d9efd0-9fe3-4487-950e-cd884469c471": {
+            "label": "left eyebrow outer",
+            "color": "#8B572A",
+            "loc": [
+              656,
+              70
+            ]
+          },
+          "fc30af35-189a-40af-8a4a-41642b91c1cb": {
+            "label": "left eyebrow inner",
+            "color": "#7ED321",
+            "loc": [
+              449,
+              58
+            ]
+          },
+          "f4e1b88e-1031-48ab-8d46-9b82b17f1fff": {
+            "label": "right eyebrow inner",
+            "color": "#417505",
+            "loc": [
+              307,
+              64
+            ]
+          },
+          "7ad28d39-8096-431b-8046-240af0d6943b": {
+            "label": "right eye inner",
+            "color": "#9013FE",
+            "loc": [
+              267,
+              126
+            ]
+          },
+          "300e944e-dad7-492d-8414-218efcb4d5ca": {
+            "label": "right eye center",
+            "color": "#4A90E2",
+            "loc": [
+              211,
+              124
+            ]
+          },
+          "1b26947e-696d-463f-9a6c-fed69a210c02": {
+            "label": "right eye outer",
+            "color": "#50E3C2",
+            "loc": [
+              163,
+              129
+            ]
+          },
+          "025c93b7-3915-46cd-9a33-d15a7d9e30cc": {
+            "label": "right eyebrow outer",
+            "color": "#BD10E0",
+            "loc": [
+              125,
+              56
+            ]
+          },
+          "8d257a0c-851d-4114-b6ff-7679fadcda41": {
+            "label": "nose tip",
+            "color": "#B8E986",
+            "loc": [
+              379,
+              289
+            ]
+          },
+          "e6142152-b6f9-440a-b60b-bb705b1945b5": {
+            "label": "mouth center top lip",
+            "color": "#000000",
+            "loc": [
+              375,
+              345
+            ]
+          },
+          "d22d0a23-dc85-4c79-95ab-c188828b63cd": {
+            "label": "mouth center bottom lip",
+            "color": "#4A4A4A",
+            "loc": [
+              381,
+              407
+            ]
+          },
+          "0c0511ea-cf54-43e4-babe-debebf514b4f": {
+            "label": "mouth left corner",
+            "color": "#9B9B9B",
+            "loc": [
+              527,
+              381
+            ]
+          },
+          "c515bcd7-cef7-495a-a3ae-c4e60567bef1": {
+            "label": "mouth right corner",
+            "color": "#FF0D2A",
+            "loc": [
+              247,
+              385
+            ]
+          },
+          "bf018808-b529-4aa8-b58c-46fa56cc4274": {
+            "label": "16",
+            "loc": [
+              0,
+              0
+            ]
+          },
+          "ffe9af35-f1ef-42e6-814a-61a7eb67e36d": {
+            "label": "17",
+            "loc": [
+              736,
+              465
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Right Eye Center",
+      "shape": "point",
+      "color": "#1D3ABF"
+    }
+  ],
+  "tags": []
+}
