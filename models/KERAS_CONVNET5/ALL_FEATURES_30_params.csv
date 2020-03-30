@@ -1,0 +1,7 @@
+,batch_size,epochs,steps,samples,verbose,do_validation,metrics
+0,128,300,,33491,False,True,loss
+1,128,300,,33491,False,True,mae
+2,128,300,,33491,False,True,mse
+3,128,300,,33491,False,True,val_loss
+4,128,300,,33491,False,True,val_mae
+5,128,300,,33491,False,True,val_mse
