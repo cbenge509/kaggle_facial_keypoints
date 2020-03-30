@@ -122,4 +122,4 @@ Below are reference model architecture depictions for the seven Level 1 regresso
 
 License
 -------
-Licensed under the MIT License. See [LICENSE](LICENSE>txt) file for more details.
+Licensed under the MIT License. See [LICENSE](LICENSE.txt) file for more details.
