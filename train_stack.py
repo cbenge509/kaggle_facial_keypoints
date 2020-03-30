@@ -173,9 +173,10 @@ def kfold_stack(train, validation, kfold_splits, model_names, stack_path, pickle
                 os.makedirs(output_path)
             model_performance_file = "".join([output_path, "performance_", str(k), ".csv"])
 
+            # CDB : 3/30/2020 - why did I even make use_validation an option?  It MUST be True, and we MUST pass in the kth holdout... sigh
             models, features = train_model.train_model(model_path = stack_path, pickle_path = pickle_path, model_name = model_name, batch_size = batch_size, 
-                epochs = epochs, normalize_labels = normalize_labels, train = stack_train, validation = validation, 
-                use_validation = use_validation, validation_split = validation_split, skip_history = True, model_performance_file = model_performance_file,
+                epochs = epochs, normalize_labels = normalize_labels, train = stack_train, validation = stack_test, 
+                use_validation = True, validation_split = validation_split, skip_history = True, model_performance_file = model_performance_file,
                 full = full, verbose = verbose)
 
             # dummy up a "test" dataframe as our current utility functions expect a specific format for test and ids
