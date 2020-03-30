@@ -47,7 +47,46 @@ The competition is ranked by the lowest error in prediction by the [Root Mean Sq
 <img src="/images/rmse.jpg" width="400" />
 
 ## Training Pipeline
+
 ![train pipeline](/images/train_pipeline.jpg)
+
+Our training pipeline begins with splitting the TRAIN and TEST datasets into two separate challenges (more on the reason for this below), applying simple cleaning, and adding a moderate amount of augmentation images derived from the initial, base images.  We experiemented with a lot of augmentation strategies, but in the end the following performed best for our models:
+
+* manual label assignment to ~56 training labels that were overtly incorrect.
+* Image pixel values normalized between 0 and 1 (both TRAIN and TEST).
+* positive and negative rotation of images by the following degrees: {+/-5, +/-9, +/-13}
+* elastic transformation of images using alpha/sigma values of {991/8, 1201/11}.
+* random gaussian noise, applying between ~-0.03 to ~+0.03 values to the pixels.
+* brightened images by the following scalars: {1.2x, 1.5x}.
+* dimmed images by the following scalers: {0.6x, 0.8x}.
+* contrast stretching in the following ranges: {0.0 - 1.5, 0.0 - 2.0}.
+* custom image sharpening 3x3 conv2d kernel applied one time.
+
+Many other augmentations were experimented with, such as horizontal flipping, blurring, laplacian smoothing, etc. but all resulted in adverse impact to predict error.
+
+The TRAIN dataset provided by the competition organizers appears to derive from two distinct sources: one where all 15 landmark labels are present, and another where only 4 are present (note: there are a few images thorughout that have some other count of missing label information, but they are the exception).  Initially, we were able to achieve a single best-model RMSE score of **1.62800** by addressing all missing labels through interpoloation of their `np.nanmean()` keypoint average location.
+
+We discovered significant improvement (approx. _-0.2 RMSE_) through splitting our training pipeline in two: (1) trained models on the set with all data points available, and (2) trained models for only the 4 keypoints present in the "partial" set.  At prediction time, we use the "partial" models to predict only those TEST records for which we are asked to predict 4 points, and use the "complete" (1) models for all other facial keypoints.  Controlling for all other changes, this move alone resulted in a best single-model score of RMSE **1.43812**.
+
+Generalized stacking using a K-Fold approach was used to avoid overfitting at the metaregressor phase.  Seven neural networks were used as Level 1 predictors for both the "complete" and "partial" data sets (the models were identical save for the final layer).  All models were trained using a batch size of 128 * 2 (128 for each GPU detected) and epoch size of 300.  Training occurred on machines with either 2 x NVidia RTX 2080 Ti's or 2 x NVidia Tesla V100's.  A general descripton for each Level 1 model is listed below:
+
+| Model Name | Description |
+|:-----------|:------------|
+|Conv2D 5-Layer | A simple 5-layer conv2d network  |
+|NaimishNet | A 7.4M parameter convnet that  learns only one keypoint at a time.  |
+|Conv2D 10-Layer | A deeper version of Conv2D 5-Layer |
+|Local2D | A modified version of Conv2D whose final layer is a Local2D and global average pool |
+|Inception V1 | A modified version of Google's inception V1 |
+|Inception V3 | A modified version of Google's inception V3 |
+|LeNet5 | A slightly modified 5-layer version of the class LeNet |
+
+Following K-Fold training of the seven models for both the "complete" TRAIN dataset and the "partial" TRAIN dataset, all sevel models are then trained again on the complete TRAIN dataset for the prediction phase, used during final inferencing.  Aft3er all L1 training predictions are captured, simple multiplciation feature interactions are generated per model, resuliting in a per-model input space increase from 30 (the initial 30 keypoint X and Y coordinates) to 30 + (30-choose-2) feature interactions = 465 per model inputs.  A MultiTaskElasticNet linear regression biased to L1 regularization @ 100% is used as our final regressor over all (465 * 7) = 3,255 inputs.  This model is then saved and used in our final inferencing for submission.
 
 ## Inference Pipeline
 ![inference pipeline](/images/inference_pipeline.jpg)
+
+The inferencing pipeline behavior is essentially duplicative of the training process above, with the exception that TEST is also split based on whether we are scored on finding 4 keypoints (8 labels) or NOT 4 keypoints (Not 8 labels).  These images are inferenced through all sevel Level 1 models, combined, feature interactions are calculated, and a final submission inference is taken from the Level 2 MultiTaskElasticNet linear regressor.
+
+License
+-------
+Licensed under the MIT License. See [LICENSE](LICENSE>txt) file for more details.
