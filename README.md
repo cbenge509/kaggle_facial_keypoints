@@ -87,6 +87,39 @@ Following K-Fold training of the seven models for both the "complete" TRAIN data
 
 The inferencing pipeline behavior is essentially duplicative of the training process above, with the exception that TEST is also split based on whether we are scored on finding 4 keypoints (8 labels) or NOT 4 keypoints (Not 8 labels).  These images are inferenced through all sevel Level 1 models, combined, feature interactions are calculated, and a final submission inference is taken from the Level 2 MultiTaskElasticNet linear regressor.
 
+Models Architectures
+=====================
+
+Below are reference model architecture depictions for the seven Level 1 regressors.
+
+## Conv2D 5-Layer
+
+<img src="/models/KERAS_CONVNET5/ALL_FEATURES_30_model_plot.png" width="400"/>
+
+## Inception V1
+
+<img src="/models/KERAS_INCEPTION/inception_ALL_FEATURES_30_plot.png" width="800"/>
+
+## Inception V3
+
+Coming soon.
+
+## Conv2D 10-Layer
+
+<img src="/models/KERAS_KAGGLE1/ALL_FEATURES_30_model_plot.png" width="300"/>
+
+## Local2D
+
+Coming soon.
+
+## NaimishNet
+
+Coming soon.
+
+## LeNet5
+
+<img src="/models/KERAS_LENET5/ALL_FEATURES_30_model_plot.png" width="500"/>
+
 License
 -------
 Licensed under the MIT License. See [LICENSE](LICENSE>txt) file for more details.
