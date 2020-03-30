@@ -102,7 +102,7 @@ Below are reference model architecture depictions for the seven Level 1 regresso
 
 ## Inception V3
 
-Coming soon.
+<img src="/models/KERAS_INCEPTIONV3/inception_ALL_FEATURES_30_plot.png" width="500"/>
 
 ## Conv2D 10-Layer
 
@@ -110,11 +110,11 @@ Coming soon.
 
 ## Local2D
 
-Coming soon.
+<img src="/models/KERAS_KAGGLE2/ALL_FEATURES_30_model_plot.png" width="800" />
 
 ## NaimishNet
 
-Coming soon.
+<img src="/models/KERAS_NAIMISHNET/NaimishNet_left_eye_center_30_model_plot.png" width="800" />
 
 ## LeNet5
 
