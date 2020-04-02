@@ -12,6 +12,12 @@ U.C. Berkeley, Masters in Information & Data Science program - [datascience@berk
 Spring 2020, W207 - Machine Learning - D. Schioberg, PhD <br>
 Section 5 - Wed. 4:00pm PDT
 
+---
+
+<img src="/images/seth_logo.png" align="center">
+
+---
+
 ## Description
 
 This repo contains a solution for the [Kaggle Facial Keypoints Detection](https://www.kaggle.com/c/facial-keypoints-detection) challenge, developed by Cristopher Benge (U.C. Berkeley) and William Casey King (Yale University, U.C. Berkeley).  This solution leverages a variety of neural network architectures and a custom K-fold generalized stacker to achieve a top 5 score.
