@@ -301,7 +301,7 @@ if __name__ == "__main__":
 
     # generate a unique run sequence to avoid file creation collision
     run_sequence = str(uuid.uuid1()).replace('-','')
-    #run_sequence = "da8d46ee6aa511eaa654000d3a129e03"
+    #run_sequence = "570ee126724411eaa950000d3a129e03"
     
     print("Stacking started with run sequence:", run_sequence, "\n")
 
@@ -312,6 +312,7 @@ if __name__ == "__main__":
     predict.MODEL_PATH = STACK_PATH
 
     for f, tr, te in zip([True, False], [TRAIN30_DATA_FILE, TRAIN8_DATA_FILE], [TEST30_DATA_FILE, TEST8_DATA_FILE]):
+    #for f, tr, te in zip([False, True], [TRAIN8_DATA_FILE, TRAIN30_DATA_FILE], [TEST8_DATA_FILE, TEST30_DATA_FILE]):
         # load the training and validation datasets
         train, validation = train_model.load_data(pickle_path = PICKLE_PATH, train_file = tr, 
             validation_file = VALIDATION_DATA_FILE, use_validation = USE_VALIDATION, verbose = False)
@@ -327,7 +328,7 @@ if __name__ == "__main__":
         
         # train full models for use in final inferencing
         train_models(model_names = MODEL_NAMES, stack_path = STACK_PATH, pickle_path = PICKLE_PATH, batch_size = BATCH_SIZE, epochs = EPOCH_COUNT, 
-            normalize_labels = NORMALIZE_LABELS, use_validation = USE_VALIDATION, validation_split = VALIDATION_SPLIT, verbose = VERBOSE, full = f)
+            normalize_labels = NORMALIZE_LABELS, use_validation = False, validation_split = 0.1, verbose = VERBOSE, full = f)
 
         # predict outputs for the fully trained model (used in metaregressor prediction)
         predict_models(model_names = MODEL_NAMES, stack_path = STACK_PATH, pickle_path = PICKLE_PATH, normalize_labels = NORMALIZE_LABELS, 

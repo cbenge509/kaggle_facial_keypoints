@@ -175,7 +175,7 @@ def get_train(stack_path, run_sequence, scale_data, create_interactions = False,
     for model in models:
         print("Loading model files for '%s'..." % model)
 
-        files = np.sort([f for f in os.listdir(stack_path) if os.path.isfile(os.path.join(stack_path,f)) and f.startswith("".join(["STACK_", model])) and run_sequence in f])
+        files = np.sort([f for f in os.listdir(stack_path) if os.path.isfile(os.path.join(stack_path,f)) and f.startswith("".join(["STACK_", model, "_"])) and run_sequence in f])
         if full:
             files = [f for f in files if '_30_' in f]
         else:
@@ -411,6 +411,10 @@ if __name__ == "__main__":
             scale_data = SCALE_DATA, create_interactions = USE_INTERACTIONS, full = f, verbose = VERBOSE)
 
         # train the metaregressor
+        print("Train shape: %s" % str(train.shape))
+        print("labels shape: %s" % str(labels.shape))
+        print("models:", models)
+
         reg = train_metaregressor(stack_path = STACK_PATH, train = train, labels = labels, run_sequence = run_sequence, 
             scale_data = SCALE_DATA, models = models, predict_mode_all = METAREGRESSOR_PREDICT_ALL, full = f, verbose = VERBOSE)
 
