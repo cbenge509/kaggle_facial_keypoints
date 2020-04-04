@@ -74,7 +74,7 @@ The TRAIN dataset provided by the competition organizers appears to derive from 
 
 We discovered significant improvement (approx. _-0.2 RMSE_) through splitting our training pipeline in two: (1) trained models on the set with all data points available, and (2) trained models for only the 4 keypoints present in the "partial" set.  At prediction time, we use the "partial" models to predict only those TEST records for which we are asked to predict 4 points, and use the "complete" (1) models for all other facial keypoints.  Controlling for all other changes, this move alone resulted in a best single-model score of RMSE **1.43812**.
 
-Generalized stacking using a K-Fold approach was used to avoid overfitting at the metaregressor phase.  Eight neural networks were used as Level 1 predictors for both the "complete" and "partial" data sets (the models were identical save for the final layer).  All models were trained using a batch size of 128 * 2 (128 for each GPU detected) and epoch size of 300.  Training occurred on machines with either 2 x NVidia RTX 2080 Ti's or 2 x NVidia Tesla V100's.  A general descripton for each Level 1 model is listed below:
+Generalized stacking using a K-Fold approach was used to avoid overfitting at the metaregressor phase.  Ten neural networks were used as Level 1 predictors for both the "complete" and "partial" data sets (the models were identical save for the final layer).  All models were trained using a batch size of 128 * 2 (128 for each GPU detected) and epoch size of 300.  Training occurred on machines with either 2 x NVidia RTX 2080 Ti's or 2 x NVidia Tesla V100's.  A general descripton for each Level 1 model is listed below:
 
 | Model Name | Description |
 |:-----------|:------------|
@@ -86,8 +86,10 @@ Generalized stacking using a K-Fold approach was used to avoid overfitting at th
 |Inception V3 | A modified version of Google's inception V3 |
 |LeNet5 | A slightly modified 5-layer version of the class LeNet |
 |ResNet50 | A slightly modified version of the classic ResNet50 architecture |
+|ResNet | A greatly simplified ResNet architecture |
+|ResNeXt50 | The full ResNeXt50 architecture |
 
-Following K-Fold training of the eight models for both the "complete" TRAIN dataset and the "partial" TRAIN dataset, all sevel models are then trained again on the complete TRAIN dataset for the prediction phase, used during final inferencing.  Aft3er all L1 training predictions are captured, simple multiplciation feature interactions are generated per model, resuliting in a per-model input space increase from 30 (the initial 30 keypoint X and Y coordinates) to 30 + (30-choose-2) feature interactions = 465 per model inputs.  A MultiTaskElasticNet linear regression biased to L1 regularization @ 100% is used as our final regressor over all (465 * 7) = 3,255 inputs.  This model is then saved and used in our final inferencing for submission.
+Following K-Fold training of the ten models for both the "complete" TRAIN dataset and the "partial" TRAIN dataset, all sevel models are then trained again on the complete TRAIN dataset for the prediction phase, used during final inferencing.  Aft3er all L1 training predictions are captured, simple multiplciation feature interactions are generated per model, resuliting in a per-model input space increase from 30 (the initial 30 keypoint X and Y coordinates) to 30 + (30-choose-2) feature interactions = 465 per model inputs.  A MultiTaskElasticNet linear regression biased to L1 regularization @ 100% is used as our final regressor over all (465 * 7) = 3,255 inputs.  This model is then saved and used in our final inferencing for submission.
 
 ## Inference Pipeline
 ![inference pipeline](/images/inference_pipeline.jpg)
@@ -103,7 +105,7 @@ Stacked generalization was used to leverage the strengths of each model to produ
 Models Architectures
 =====================
 
-Below are reference model architecture depictions for the eight Level 1 regressors.
+Below are reference model architecture depictions for the ten Level 1 regressors.
 
 ## Conv2D 5-Layer
 
@@ -136,6 +138,10 @@ Below are reference model architecture depictions for the eight Level 1 regresso
 ## ResNet50
 
 <img src="/models/KERAS_RESNET50/ALL_FEATURES_30_model_plot.png" width="300"/>
+
+## ResNeXt50
+
+<img src="/models/KERAS_RESNEXT50/ALL_FEATURES_30_model_plot.png" width="300"/>
 
 License
 -------
