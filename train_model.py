@@ -35,7 +35,7 @@ TRAIN_DATA_AUGMENTATION_FILE = "cleandata_train_plus_augmentation.pkl"
 TRAIN_DATA_FILE = "cleandata_naive_train.pkl"
 
 # Processing behavior (constants)
-AVAILABLE_MODELS = ["KERAS_LENET5", "KERAS_INCEPTION", "KERAS_KAGGLE1", "KERAS_NAIMISHNET", "KERAS_CONVNET5", "KERAS_INCEPTIONV3", "KERAS_KAGGLE2"]
+AVAILABLE_MODELS = ["KERAS_LENET5", "KERAS_INCEPTION", "KERAS_KAGGLE1", "KERAS_NAIMISHNET", "KERAS_CONVNET5", "KERAS_INCEPTIONV3", "KERAS_KAGGLE2", "KERAS_RESNET50"]
 VALIDATION_DATA_FILE = "validation_set.pkl"
 
 TRAIN30_DATA_AUGMENTATION_FILE = "cleandata_train30_plus_augmentation.pkl"
@@ -197,6 +197,16 @@ def train_model(model_path, pickle_path, model_name, batch_size, epochs, normali
         models_out.append(main)
         features.append(feature_name)
 
+    elif model_name == "KERAS_RESNET50":
+        feature_name = "ALL_FEATURES"
+        report_metrics = ['val_mse']
+        report_names = ['main_output']
+        main, hist_params, hist = train_model_resnet50(models = models, xform = xform, batch_size = batch_size, epochs = epochs, 
+            normalize_labels = normalize_labels, train = train, validation = validation, use_validation = use_validation, 
+            validation_split = validation_split, feature_name = feature_name, full = full, verbose = verbose)
+        models_out.append(main)
+        features.append(feature_name)
+
     elif model_name == "KERAS_KAGGLE1":
         feature_name = "ALL_FEATURES"
         report_metrics, report_names = ['val_mse'], ['output']
@@ -314,6 +324,29 @@ def train_model_kaggle2(models, xform, batch_size, epochs, normalize_labels, tra
         X_val, Y_val = xform.PrepareTrain(train = validation, feature_name = feature_name, normalize = normalize_labels, verbose = verbose)
 
         model, hist_params, hist = models.get_keras_kaggle2(X = X, Y = Y, batch_size = batch_size, epoch_count = epochs,
+            X_val = X_val, Y_val = Y_val, shuffle = True, feature_name = feature_name, recalculate_pickle = True, full = full, verbose = verbose)
+
+    return model, hist_params, hist
+
+#%%
+
+############################################################################
+# TRAIN MODEL RESNET50
+############################################################################
+
+def train_model_resnet50(models, xform, batch_size, epochs, normalize_labels, train, validation, use_validation, validation_split, feature_name, full = True, verbose = True):
+
+    X, Y = xform.PrepareTrain(train = train, feature_name = feature_name, normalize = normalize_labels, verbose = verbose)
+
+    if not use_validation:
+        if verbose: print("Training using a validation split of %.2f%%." % (validation_split * 100.))
+        model, hist_params, hist = models.get_keras_resnet50(X = X, Y = Y, batch_size = batch_size, epoch_count = epochs,
+            val_split = validation_split, shuffle = True, feature_name = feature_name, recalculate_pickle = True, full = full, verbose = verbose)
+    else:
+        if verbose: print("Training using a validation dataset with shape: %s" % str(validation.shape))
+        X_val, Y_val = xform.PrepareTrain(train = validation, feature_name = feature_name, normalize = normalize_labels, verbose = verbose)
+
+        model, hist_params, hist = models.get_keras_resnet50(X = X, Y = Y, batch_size = batch_size, epoch_count = epochs,
             X_val = X_val, Y_val = Y_val, shuffle = True, feature_name = feature_name, recalculate_pickle = True, full = full, verbose = verbose)
 
     return model, hist_params, hist

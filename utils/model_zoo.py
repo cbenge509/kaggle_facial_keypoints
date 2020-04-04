@@ -12,7 +12,7 @@ import pickle
 
 from keras.layers.advanced_activations import LeakyReLU, ELU, ReLU
 from keras.models import Sequential, Model, model_from_json
-from keras.layers import Activation, Convolution2D, Conv2D, LocallyConnected2D, MaxPooling2D, AveragePooling2D, GlobalAveragePooling2D, BatchNormalization, Flatten, Dense, Dropout, Input, concatenate
+from keras.layers import Activation, Convolution2D, Conv2D, LocallyConnected2D, MaxPooling2D, AveragePooling2D, GlobalAveragePooling2D, BatchNormalization, Flatten, Dense, Dropout, Input, concatenate, add, ZeroPadding2D, GlobalMaxPooling2D
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
 from keras.optimizers import Adam
 #from keras.activations import linear, elu, tanh, relu
@@ -178,7 +178,73 @@ class Models(object):
         arr = np.reshape(arr_copy, (num_instances, num_rows, num_columns, num_layers))
 
         return arr
-    
+
+    # resnet identity block builder
+    def __identity_block(self, model, kernel_size, filters, stage, block):
+        """modularized identity block for resnet"""
+        filters1, filters2, filters3 = filters
+
+        conv_name_base = 'res' + str(stage) + block + '_branch'
+        bn_name_base = 'bn' + str(stage) + block + '_branch'
+
+        x = Conv2D(filters1, (1, 1),
+                        kernel_initializer='he_normal',
+                        name=conv_name_base + '2a')(model)
+        x = BatchNormalization(axis=3, name=bn_name_base + '2a')(x)
+        x = Activation('relu')(x)
+
+        x = Conv2D(filters2, kernel_size,
+                        padding='same',
+                        kernel_initializer='he_normal',
+                        name=conv_name_base + '2b')(x)
+        x = BatchNormalization(axis=3, name=bn_name_base + '2b')(x)
+        x = Activation('relu')(x)
+
+        x = Conv2D(filters3, (1, 1),
+                        kernel_initializer='he_normal',
+                        name=conv_name_base + '2c')(x)
+        x = BatchNormalization(axis=3, name=bn_name_base + '2c')(x)
+
+        x = add([x, model])
+        x = Activation('relu')(x)
+        return x
+
+    # resnet conv block builder
+    def __conv_block(self, model, kernel_size, filters, stage, block, strides=(2, 2)):
+        """conv block builder for resnet"""
+        filters1, filters2, filters3 = filters
+
+        conv_name_base = 'res' + str(stage) + block + '_branch'
+        bn_name_base = 'bn' + str(stage) + block + '_branch'
+
+        x = Conv2D(filters1, (1, 1), strides=strides,
+                        kernel_initializer='he_normal',
+                        name=conv_name_base + '2a')(model)
+        x = BatchNormalization(axis=3, name=bn_name_base + '2a')(x)
+        x =Activation('relu')(x)
+
+        x = Conv2D(filters2, kernel_size, padding='same',
+                        kernel_initializer='he_normal',
+                        name=conv_name_base + '2b')(x)
+        x = BatchNormalization(axis=3, name=bn_name_base + '2b')(x)
+        x = Activation('relu')(x)
+
+        x = Conv2D(filters3, (1, 1),
+                        kernel_initializer='he_normal',
+                        name=conv_name_base + '2c')(x)
+        x = BatchNormalization(axis=3, name=bn_name_base + '2c')(x)
+
+        shortcut = Conv2D(filters3, (1, 1), strides=strides,
+                                kernel_initializer='he_normal',
+                                name=conv_name_base + '1')(model)
+        shortcut = BatchNormalization(
+            axis=3, name=bn_name_base + '1')(shortcut)
+
+        x = add([x, shortcut])
+        x = Activation('relu')(x)
+        
+        return x
+
     # create a layerable inception module
     def __inception_module(self, model, filters_1x1, filters_3x3_reduce, filters_3x3, 
             filters_5x5_reduce, filters_5x5, filters_pool_proj, kernel_init, bias_init, name = None):
@@ -263,6 +329,7 @@ class Models(object):
         __history_params_file = "".join([nested_dir, "NaimishNet_", feature_name, __MODEL_SUFFIX, "_params.csv"])
         __history_performance_file = "".join([nested_dir, "NaimishNet_", feature_name, __MODEL_SUFFIX, "_history.csv"])
         __history_plot_file = "".join([nested_dir, "NaimishNet_", feature_name, __MODEL_SUFFIX, "_plot.png"])
+        __model_architecture_plot_file = "".join([nested_dir, "NaimishNet_", feature_name, __MODEL_SUFFIX, "_model_plot.png"])
 
         if verbose: print("Retrieving model: %s..." % "".join([__MODEL_NAME, "_", feature_name, __MODEL_SUFFIX]))
 
@@ -356,6 +423,10 @@ class Models(object):
             hist = pd.DataFrame(history.history)
             hist.to_csv(__history_performance_file)
             if verbose: print("Model JSON, history, and parameters file saved.")
+
+            # save a plot of the model architecture
+            plot_model(parallel_model, to_file = __model_architecture_plot_file, rankdir = 'TB', 
+                show_shapes = True, show_layer_names = True, expand_nested = True, dpi=300)
 
         else:
             if verbose: print("Loading history and params files for '%s' MODEL..." % feature_name)
@@ -1733,6 +1804,363 @@ class Models(object):
         ##scaler = pickle.load(open(__scaler_file, "rb"))
         ##X = self.__4d_Scaler(arr = X, ss = scaler, fit = False, verbose = verbose)
 
+        # load the Keras model for the specified feature
+        model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        # predict
+        if verbose: print("Predicting %d (x,y) coordinates for '%s'..." % (len(X), feature_name))
+        Y = model.predict(X, verbose = verbose)
+
+        if verbose: print("Predictions completed!")
+
+        return Y
+    #------------------------------------------------
+    # Kaggle2 Model 
+    #------------------------------------------------
+
+    def get_keras_kaggle2(self, X, Y, batch_size, epoch_count, val_split = 0.05, X_val = None, Y_val = None, shuffle = True, 
+        feature_name = "ALL_FEATURES", recalculate_pickle = True, full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - Kaggle2"
+        __MODEL_FNAME_PREFIX = "KERAS_KAGGLE2/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+        
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            os.makedirs(nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+        __history_params_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_params.csv"])
+        __history_performance_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_history.csv"])
+        __history_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_plot.png"])
+        __model_architecture_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_model_plot.png"])
+        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
+
+        if verbose: print("Retrieving model: %s..." % "".join([__MODEL_NAME, __MODEL_SUFFIX]))
+
+        # Create or load the model
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)) or recalculate_pickle:
+            if verbose: print("Pickle file for '%s' MODEL not found or skipped by caller." % feature_name)
+
+            #act = Adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-08)
+            act = 'adam'
+            #lss = losses.mean_squared_error
+            lss = 'mean_squared_error'
+            #mtrc = [metrics.RootMeanSquaredError()]
+            mtrc = ['mae','mse']
+
+            stop_at = np.max([int(0.1 * epoch_count), self.__MIN_early_stopping])
+            es = EarlyStopping(patience = stop_at, verbose = verbose)
+
+            cp = ModelCheckpoint(filepath = __model_file_name, verbose = verbose, save_best_only = True, 
+                mode = 'min', monitor = 'val_mae')
+
+            if self.__GPU_count > 1: dev = "/cpu:0"
+            else: dev = "/gpu:0"
+            with tf.device(dev):
+                model = Sequential()
+
+                # Input dimensions: (None, 96, 96, 1)
+                model.add(Convolution2D(32, (3,3), padding='valid', use_bias = True, input_shape = (96,96,1)))
+                model.add(LeakyReLU(alpha = 0.1))
+                model.add(BatchNormalization())
+                model.add(MaxPooling2D(pool_size=(2, 2)))
+                model.add(Dropout(0.2))
+
+                model.add(Convolution2D(64, (3,3), padding = 'valid', use_bias = True))
+                model.add(LeakyReLU(alpha = 0.1))
+                model.add(BatchNormalization())
+                model.add(MaxPooling2D(pool_size=(2, 2)))
+                model.add(Dropout(0.2))
+
+                model.add(Convolution2D(128, (3,3), padding = 'valid', use_bias = True))
+                model.add(LeakyReLU(alpha = 0.1))
+                model.add(BatchNormalization())
+                model.add(MaxPooling2D(pool_size=(2, 2)))
+                model.add(Dropout(0.2))
+
+                model.add(LocallyConnected2D(32, (3, 3), padding = 'valid', use_bias = True))
+                model.add(LeakyReLU(alpha = 0.1))
+                model.add(BatchNormalization())
+                model.add(GlobalAveragePooling2D())
+
+                # Input dimensions: (None, 3, 3, 512)
+                #model.add(Flatten())
+                model.add(Dense(512,activation='relu'))
+                
+                # CDB DROPOUT INCREASED FROM 0.1 to 0.2
+                model.add(Dropout(0.15))
+                if full:
+                    model.add(Dense(30))
+                else:
+                    model.add(Dense(8))
+
+            if verbose: print(model.summary())
+
+            # Compile the model
+            if self.__GPU_count > 1:
+                strategy = tf.distribute.MirroredStrategy()
+                with strategy.scope():
+                    parallel_model = multi_gpu_model(model, gpus = self.__GPU_count)
+                    parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+            else:
+                parallel_model = model
+                parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+
+
+            if (X_val is None) or (Y_val is None):
+                history = parallel_model.fit(X, Y, validation_split = val_split, batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+            else:
+                history = parallel_model.fit(X, Y, validation_data = (X_val, Y_val), batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+
+            # print and/or save a performance plot
+            self.__plot_keras_history(history = history, metric = 'mse', #metric = 'root_mean_squared_error', 
+                model_name = __MODEL_NAME, feature_name = feature_name, file_name = __history_plot_file,
+                verbose = verbose)
+            
+            # save the model, parameters, and performance history
+            model_json = parallel_model.to_json()
+            with open(__model_json_file, "w") as json_file:
+                json_file.write(model_json)
+            hist_params = pd.DataFrame(history.params)
+            hist_params.to_csv(__history_params_file)
+
+            hist = pd.DataFrame(history.history)
+            hist.to_csv(__history_performance_file)
+            if verbose: print("Model JSON, history, and parameters file saved.")
+
+            # save a plot of the model architecture
+            plot_model(parallel_model, to_file = __model_architecture_plot_file, rankdir = 'TB', 
+                show_shapes = True, show_layer_names = True, expand_nested = True, dpi=300)
+
+
+        else:
+            if verbose: print("Loading history and params files for '%s' MODEL..." % feature_name)
+            hist_params = pd.read_csv(__history_params_file)
+            hist = pd.read_csv(__history_performance_file)
+            if verbose: print("Loading pickle file for '%s' MODEL from file '%s'" % (feature_name, __model_file_name))
+            parallel_model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        return parallel_model, hist_params, hist
+
+    # inferencing
+    def predict_keras_kaggle2(self, X, feature_name = "unknown", full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - Kaggle2"
+        __MODEL_FNAME_PREFIX = "KERAS_KAGGLE2/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            raise RuntimeError("Model path '%s' does not exist; exiting inferencing." % nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+
+        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
+
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)):## or (not os.path.isfile(__scaler_file)):
+            raise RuntimeError("One or some of the following files are missing; prediction cancelled:\n\n'%s'\n'%s'\n" % ##'%s'\n" % 
+                (__model_file_name, __model_json_file))##, __scaler_file))
+        
+        # Load the training scaler for this model
+        ##if verbose: print("Loading SCALER for '%s' and zero-centering X." % feature_name)
+        ##scaler = pickle.load(open(__scaler_file, "rb"))
+        ##X = self.__4d_Scaler(arr = X, ss = scaler, fit = False, verbose = verbose)
+
+        # load the Keras model for the specified feature
+        model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        # predict
+        if verbose: print("Predicting %d (x,y) coordinates for '%s'..." % (len(X), feature_name))
+        Y = model.predict(X, verbose = verbose)
+
+        if verbose: print("Predictions completed!")
+
+        return Y
+
+    #------------------------------------------------
+    # ResNet50
+    # Inspired by: https://arxiv.org/abs/1512.03385
+    #------------------------------------------------
+
+    def get_keras_resnet50(self, X, Y, batch_size, epoch_count, val_split = 0.1, X_val = None, Y_val = None, shuffle = True, 
+        feature_name = "ALL_FEATURES", recalculate_pickle = True, full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNet50"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNET50/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+        
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            os.makedirs(nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+        __history_params_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_params.csv"])
+        __history_performance_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_history.csv"])
+        __history_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_plot.png"])
+        __model_architecture_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_model_plot.png"])
+        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
+
+        if verbose: print("Retrieving model: %s..." % "".join([__MODEL_NAME, __MODEL_SUFFIX]))
+
+        # Create or load the model
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)) or recalculate_pickle:
+            if verbose: print("Pickle file for '%s' MODEL not found or skipped by caller." % feature_name)
+
+            #act = Adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-08)
+            act = 'adam'
+            #lss = losses.mean_squared_error
+            lss = 'mean_squared_error'
+            #mtrc = [metrics.RootMeanSquaredError()]
+            mtrc = ['mae','mse']
+
+            stop_at = np.max([int(0.1 * epoch_count), self.__MIN_early_stopping])
+            es = EarlyStopping(patience = stop_at, verbose = verbose)
+
+            cp = ModelCheckpoint(filepath = __model_file_name, verbose = verbose, save_best_only = True, 
+                mode = 'min', monitor = 'val_mae')
+
+            # a few custom parameters for tuning
+            include_top = True
+            pooling = 'avg' # can be 'max' as well, only used if include_top is False
+
+            if self.__GPU_count > 1: dev = "/cpu:0"
+            else: dev = "/gpu:0"
+            with tf.device(dev):
+
+                # Input image shape (H, W, C)
+                input_img = Input(shape = (96, 96, 1))
+                bn_axis = 3
+
+                # Begin ResNet50
+                x = ZeroPadding2D(padding=(3, 3), name='conv1_pad')(input_img)
+                x = Conv2D(64, (7, 7), strides=(2, 2), padding='valid', kernel_initializer='he_normal', name='conv1') (x)
+                x = BatchNormalization(axis=bn_axis, name='bn_conv1')(x)
+                x = Activation('relu')(x)
+                x = ZeroPadding2D(padding=(1, 1), name='pool1_pad')(x)
+                x = MaxPooling2D((3, 3), strides=(2, 2))(x)
+
+                x = self.__conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1))
+                x = self.__identity_block(x, 3, [64, 64, 256], stage=2, block='b')
+                x = self.__identity_block(x, 3, [64, 64, 256], stage=2, block='c')
+
+                x = self.__conv_block(x, 3, [128, 128, 512], stage=3, block='a')
+                x = self.__identity_block(x, 3, [128, 128, 512], stage=3, block='b')
+                x = self.__identity_block(x, 3, [128, 128, 512], stage=3, block='c')
+                x = self.__identity_block(x, 3, [128, 128, 512], stage=3, block='d')
+
+                x = self.__conv_block(x, 3, [256, 256, 1024], stage=4, block='a')
+                x = self.__identity_block(x, 3, [256, 256, 1024], stage=4, block='b')
+                x = self.__identity_block(x, 3, [256, 256, 1024], stage=4, block='c')
+                x = self.__identity_block(x, 3, [256, 256, 1024], stage=4, block='d')
+                x = self.__identity_block(x, 3, [256, 256, 1024], stage=4, block='e')
+                x = self.__identity_block(x, 3, [256, 256, 1024], stage=4, block='f')
+
+                x = self.__conv_block(x, 3, [512, 512, 2048], stage=5, block='a')
+                x = self.__identity_block(x, 3, [512, 512, 2048], stage=5, block='b')
+                x = self.__identity_block(x, 3, [512, 512, 2048], stage=5, block='c')
+
+                if include_top:
+                    x = GlobalAveragePooling2D(name='avg_pool')(x)
+                    if full:
+                        x = Dense(30, name='fc1000') (x)
+                    else:
+                        x = Dense(8, name='fc1000') (x)
+                else:
+                    if pooling == 'avg':
+                        x = GlobalAveragePooling2D()(x)
+                    elif pooling == 'max':
+                        x = GlobalMaxPooling2D()(x)
+                    else:
+                        raise RuntimeError('The output shape of `ResNet50(include_top=False)` has been changed since Keras 2.2.0.')
+                
+                model = Model(input_img, x, name='resnet50')
+
+            if verbose: print(model.summary())
+
+            # Compile the model
+            if self.__GPU_count > 1:
+                strategy = tf.distribute.MirroredStrategy()
+                with strategy.scope():
+                    parallel_model = multi_gpu_model(model, gpus = self.__GPU_count)
+                    parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+            else:
+                parallel_model = model
+                parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+
+
+            if (X_val is None) or (Y_val is None):
+                history = parallel_model.fit(X, Y, validation_split = val_split, batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+            else:
+                history = parallel_model.fit(X, Y, validation_data = (X_val, Y_val), batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+
+            # print and/or save a performance plot
+            self.__plot_keras_history(history = history, metric = 'mse', #metric = 'root_mean_squared_error', 
+                model_name = __MODEL_NAME, feature_name = feature_name, file_name = __history_plot_file,
+                verbose = verbose)
+            
+            # save the model, parameters, and performance history
+            model_json = parallel_model.to_json()
+            with open(__model_json_file, "w") as json_file:
+                json_file.write(model_json)
+            hist_params = pd.DataFrame(history.params)
+            hist_params.to_csv(__history_params_file)
+
+            hist = pd.DataFrame(history.history)
+            hist.to_csv(__history_performance_file)
+            if verbose: print("Model JSON, history, and parameters file saved.")
+
+            # save a plot of the model architecture
+            plot_model(parallel_model, to_file = __model_architecture_plot_file, rankdir = 'TB', 
+                show_shapes = True, show_layer_names = True, expand_nested = True, dpi=300)
+
+
+        else:
+            if verbose: print("Loading history and params files for '%s' MODEL..." % feature_name)
+            hist_params = pd.read_csv(__history_params_file)
+            hist = pd.read_csv(__history_performance_file)
+            if verbose: print("Loading pickle file for '%s' MODEL from file '%s'" % (feature_name, __model_file_name))
+            parallel_model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        return parallel_model, hist_params, hist
+
+    # inferencing
+    def predict_keras_resnet50(self, X, feature_name = "unknown", full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNet50"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNET50/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            raise RuntimeError("Model path '%s' does not exist; exiting inferencing." % nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)):
+            raise RuntimeError("One or some of the following files are missing; prediction cancelled:\n\n'%s'\n'%s'\n" % 
+                (__model_file_name, __model_json_file))
+        
         # load the Keras model for the specified feature
         model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
 
