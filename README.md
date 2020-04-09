@@ -40,9 +40,11 @@ This repo contains a solution for the [Kaggle Facial Keypoints Detection](https:
 
 ## Performance
 
-This solution achieves a best score of **~1.42 RMSE**, which is good for a 4th place position on the [now locked] private leaderboard:
+This solution achieves a best score of **1.28637 RMSE**, which is good for a 2nd place position on the [now locked] private leaderboard (and within 0.004 RMSE of the 1st place position):
 
+<img src="/images/final_submission.JPG" width="800"/>
 <img src="/images/top10.jpg" width="400"/>
+
 
 ## Evaluation Criteria
 
@@ -67,8 +69,10 @@ Our training pipeline begins with splitting the TRAIN and TEST datasets into two
 * dimmed images by the following scalers: {0.6x, 0.8x}.
 * contrast stretching in the following ranges: {0.0 - 1.5, 0.0 - 2.0}.
 * custom image sharpening 3x3 conv2d kernel applied one time.
+* Contrast Limited AHE (i.e. [adaptive histogram equalization](https://en.wikipedia.org/wiki/Adaptive_histogram_equalization)) used with clipping of 0.03.
+* Horizontal flipping / mirroring.
 
-Many other augmentations were experimented with, such as horizontal flipping, blurring, laplacian smoothing, etc. but all resulted in adverse impact to predict error.
+Many other augmentations were experimented with, such as horizontal blurring, laplacian smoothing, etc. but all resulted in adverse impact to predict error and were thrown out after testing.
 
 The TRAIN dataset provided by the competition organizers appears to derive from two distinct sources: one where all 15 landmark labels are present, and another where only 4 are present (note: there are a few images thorughout that have some other count of missing label information, but they are the exception).  Initially, we were able to achieve a single best-model RMSE score of **1.62800** by addressing all missing labels through interpoloation of their `np.nanmean()` keypoint average location.
 
