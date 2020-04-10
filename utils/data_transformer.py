@@ -230,7 +230,19 @@ class Xform(object):
             'right_eye_outer_corner_x':'left_eye_outer_corner_x',
             'right_eyebrow_inner_end_x':'left_eyebrow_inner_end_x',
             'right_eyebrow_outer_end_x':'left_eyebrow_outer_end_x',
-            'mouth_right_corner_x':'mouth_left_corner_x'}
+            'mouth_right_corner_x':'mouth_left_corner_x',
+            'left_eye_inner_corner_y':'right_eye_inner_corner_y',
+            'left_eye_center_y':'right_eye_center_y',
+            'left_eye_outer_corner_y':'right_eye_outer_corner_y',
+            'left_eyebrow_inner_end_y':'right_eyebrow_inner_end_y',
+            'left_eyebrow_outer_end_y':'right_eyebrow_outer_end_y',
+            'mouth_left_corner_y':'mouth_right_corner_y',
+            'right_eye_inner_corner_y':'left_eye_inner_corner_y',
+            'right_eye_center_y':'left_eye_center_y',
+            'right_eye_outer_corner_y':'left_eye_outer_corner_y',
+            'right_eyebrow_inner_end_y':'left_eyebrow_inner_end_y',
+            'right_eyebrow_outer_end_y':'left_eyebrow_outer_end_y',
+            'mouth_right_corner_y':'mouth_left_corner_y'}
         augmented.rename(columns=rename_cols, inplace=True)
         
         # change the column order back to original

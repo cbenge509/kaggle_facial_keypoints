@@ -314,7 +314,7 @@ def load_raw_data(data_path, pickle_path, train_data_file, test_data_file, id_lo
 
     if verbose: print("".join(["-" * 50, "\n>>> BEGIN RAW DATA LOAD <<<\n", "-" * 50, "\n"]))
     # Retrive the raw test and raw train dataframes
-    ids, _, raw_test, raw_train = dl.LoadRawData(verbose = verbose, recalculate_pickle = True)
+    ids, _, raw_test, raw_train = dl.LoadRawData(verbose = verbose, recalculate_pickle = False)
     if verbose: print("".join(["\n", "-" * 50, "\n>>> END RAW DATA LOAD <<<\n", "-" * 50, "\n"]))
 
     return raw_train, raw_test, ids

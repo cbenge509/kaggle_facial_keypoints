@@ -12,13 +12,15 @@ import pickle
 
 from keras.layers.advanced_activations import LeakyReLU, ELU, ReLU
 from keras.models import Sequential, Model, model_from_json
-from keras.layers import Activation, Convolution2D, Conv2D, LocallyConnected2D, MaxPooling2D, AveragePooling2D, GlobalAveragePooling2D, BatchNormalization, Flatten, Dense, Dropout, Input, concatenate, add, ZeroPadding2D, GlobalMaxPooling2D
+from keras.layers import Activation, Convolution2D, Conv2D, LocallyConnected2D, MaxPooling2D, AveragePooling2D, GlobalAveragePooling2D, BatchNormalization, Flatten, Dense, Dropout, Input, concatenate, add, Add, ZeroPadding2D, GlobalMaxPooling2D, DepthwiseConv2D
 from keras.callbacks import ReduceLROnPlateau, ModelCheckpoint, EarlyStopping
 from keras.optimizers import Adam
+from keras.regularizers import l2
 #from keras.activations import linear, elu, tanh, relu
 from keras import metrics, losses, initializers, backend
 from keras.utils import multi_gpu_model
 from keras.initializers import glorot_uniform, Constant, lecun_uniform
+from keras import backend as K
 
 os.environ["PATH"] += os.pathsep + "C:/ProgramData/Anaconda3/GraphViz/bin/"
 os.environ["PATH"] += os.pathsep + "C:/Anaconda/Graphviz2.38/bin/"
@@ -296,6 +298,231 @@ class Models(object):
 
         return x
 
+    # a residual block for resnext
+    def __resnext_block(self, x, filters, kernel_size = 3, stride = 1, groups = 32, conv_shortcut = True, name = None):
+
+        if conv_shortcut is True:
+            shortcut = Conv2D((64 // groups) * filters, 1, strides = stride, use_bias = False, name = name + '_0_conv') (x)
+            shortcut = BatchNormalization(axis = 3, epsilon=1.001e-5, name = name + '_0_bn') (shortcut)
+        else:
+            shortcut = x
+
+        x = Conv2D(filters, 1, use_bias = False, name = name + '_1_conv') (x)
+        x = BatchNormalization(axis = 3, epsilon = 1.001e-5, name = name + '_1_bn') (x)
+        x = Activation('relu', name = name + '_1_relu') (x)
+
+        c = filters // groups
+        x = ZeroPadding2D(padding=((1, 1), (1, 1)), name=name + '_2_pad')(x)
+        x = DepthwiseConv2D(kernel_size, strides = stride, depth_multiplier = c, use_bias = False, name = name + '_2_conv') (x)
+        kernel = np.zeros((1, 1, filters * c, filters), dtype = np.float32)
+        for i in range(filters):
+            start = (i // c) * c * c + i % c
+            end = start + c * c
+            kernel[:, :, start:end:c, i] = 1.
+        x = Conv2D(filters, 1, use_bias = False, trainable = False, kernel_initializer = {'class_name': 'Constant','config': {'value': kernel}}, name = name + '_2_gconv') (x)
+        x = BatchNormalization(axis=3, epsilon = 1.001e-5, name = name + '_2_bn') (x)
+        x = Activation('relu', name=name + '_2_relu') (x)
+
+        x = Conv2D((64 // groups) * filters, 1, use_bias = False, name = name + '_3_conv') (x)
+        x = BatchNormalization(axis = 3, epsilon=1.001e-5, name = name + '_3_bn') (x)
+
+        x = Add(name = name + '_add') ([shortcut, x])
+        x = Activation('relu', name = name + '_out') (x)
+        return x
+
+    # a set of stacked residual blocks for ResNeXt
+    def __resnext_stack(self, x, filters, blocks, stride1 = 2, groups = 32, name = None, dropout = None):
+        x = self.__resnext_block(x, filters, stride = stride1, groups = groups, name = name + '_block1')
+        for i in range(2, blocks + 1):
+            x = self.__resnext_block(x, filters, groups = groups, conv_shortcut = False,
+                    name = name + '_block' + str(i))
+        if not dropout is None:
+            x = Dropout(dropout) (x)
+        return x
+
+    def __bn_relu(self, x, bn_name = None, relu_name = None):
+        norm = BatchNormalization(axis = 3, name = bn_name) (x)
+        return Activation("relu", name = relu_name) (norm)
+
+    def __bn_relu_conv(self, **conv_params):
+
+        filters = conv_params["filters"]
+        kernel_size = conv_params["kernel_size"]
+        strides = conv_params.setdefault("strides", (1, 1))
+        dilation_rate = conv_params.setdefault("dilation_rate", (1, 1))
+        conv_name = conv_params.setdefault("conv_name", None)
+        bn_name = conv_params.setdefault("bn_name", None)
+        relu_name = conv_params.setdefault("relu_name", None)
+        kernel_initializer = conv_params.setdefault("kernel_initializer", "he_normal")
+        padding = conv_params.setdefault("padding", "same")
+        kernel_regularizer = conv_params.setdefault("kernel_regularizer", l2(1.e-4))
+
+        def f(x):
+            activation = self.__bn_relu(x, bn_name = bn_name, relu_name = relu_name)
+            return Conv2D(filters = filters, kernel_size = kernel_size,
+                        strides = strides, padding = padding,
+                        dilation_rate = dilation_rate,
+                        kernel_initializer = kernel_initializer,
+                        kernel_regularizer = kernel_regularizer,
+                        name = conv_name) (activation)
+
+        return f
+
+    def __conv_bn_relu(self, **conv_params):
+
+        filters = conv_params["filters"]
+        kernel_size = conv_params["kernel_size"]
+        strides = conv_params.setdefault("strides", (1, 1))
+        dilation_rate = conv_params.setdefault("dilation_rate", (1, 1))
+        conv_name = conv_params.setdefault("conv_name", None)
+        bn_name = conv_params.setdefault("bn_name", None)
+        relu_name = conv_params.setdefault("relu_name", None)
+        kernel_initializer = conv_params.setdefault("kernel_initializer", "he_normal")
+        padding = conv_params.setdefault("padding", "same")
+        kernel_regularizer = conv_params.setdefault("kernel_regularizer", l2(1.e-4))
+
+        def f(x):
+            x = Conv2D(filters = filters, kernel_size = kernel_size,
+                    strides = strides, padding = padding,
+                    dilation_rate = dilation_rate,
+                    kernel_initializer = kernel_initializer,
+                    kernel_regularizer = kernel_regularizer,
+                    name = conv_name) (x)
+            return self.__bn_relu(x, bn_name = bn_name, relu_name = relu_name)
+
+        return f
+
+    def __block_name_base(self, stage, block):
+        if block < 27:
+            block = '%c' % (block + 97)  # 97 is the ascii number for lowercase 'a'
+        conv_name_base = 'res' + str(stage) + block + '_branch'
+        bn_name_base = 'bn' + str(stage) + block + '_branch'
+        return conv_name_base, bn_name_base
+
+    def __shortcut(self, input_feature, residual, conv_name_base = None, bn_name_base = None):
+        input_shape = K.int_shape(input_feature)
+        residual_shape = K.int_shape(residual)
+        stride_width = int(round(input_shape[1] / residual_shape[1]))
+        stride_height = int(round(input_shape[2] / residual_shape[2]))
+        equal_channels = input_shape[3] == residual_shape[3]
+
+        shortcut = input_feature
+        # 1 X 1 conv if shape is different. Else identity.
+        if stride_width > 1 or stride_height > 1 or not equal_channels:
+            print('reshaping via a convolution...')
+            if conv_name_base is not None:
+                conv_name_base = conv_name_base + '1'
+            shortcut = Conv2D(filters=residual_shape[3],
+                            kernel_size=(1, 1),
+                            strides=(stride_width, stride_height),
+                            padding="valid",
+                            kernel_initializer="he_normal",
+                            kernel_regularizer=l2(0.0001),
+                            name=conv_name_base)(input_feature)
+            if bn_name_base is not None:
+                bn_name_base = bn_name_base + '1'
+            shortcut = BatchNormalization(axis=3,
+                                        name=bn_name_base)(shortcut)
+
+        return add([shortcut, residual])
+
+    def __basic_block(self, filters, stage, block, transition_strides = (1, 1),
+                    dilation_rate = (1, 1), is_first_block_of_first_layer = False, dropout = None,
+                    residual_unit = None):
+
+        def f(input_features):
+            conv_name_base, bn_name_base = self.__block_name_base(stage, block)
+            if is_first_block_of_first_layer:
+                # don't repeat bn->relu since we just did bn->relu->maxpool
+                x = Conv2D(filters = filters, kernel_size = (3, 3),
+                        strides = transition_strides, dilation_rate = dilation_rate,
+                        padding = "same", kernel_initializer = "he_normal", kernel_regularizer = l2(1e-4),
+                        name = conv_name_base + '2a') (input_features)
+            else:
+                x = residual_unit(filters = filters, kernel_size = (3, 3),
+                                strides = transition_strides,
+                                dilation_rate = dilation_rate,
+                                conv_name_base = conv_name_base + '2a',
+                                bn_name_base = bn_name_base + '2a') (input_features)
+
+            if dropout is not None:
+                x = Dropout(dropout) (x)
+
+            x = residual_unit(filters = filters, kernel_size = (3, 3),
+                            conv_name_base = conv_name_base + '2b',
+                            bn_name_base = bn_name_base + '2b') (x)
+
+            return self.__shortcut(input_features, x)
+
+        return f
+
+    def __bottleneck(self, filters, stage, block, transition_strides = (1, 1),
+                dilation_rate = (1, 1), is_first_block_of_first_layer = False, dropout = None,
+                residual_unit = None):
+        """Bottleneck architecture for > 34 layer resnet.
+        Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
+        Returns:
+            A final conv layer of filters * 4
+        """
+        def f(input_feature):
+            conv_name_base, bn_name_base = self.__block_name_base(stage, block)
+            if is_first_block_of_first_layer:
+                # don't repeat bn->relu since we just did bn->relu->maxpool
+                x = Conv2D(filters=filters, kernel_size=(1, 1),
+                        strides=transition_strides,
+                        dilation_rate=dilation_rate,
+                        padding="same",
+                        kernel_initializer="he_normal",
+                        kernel_regularizer=l2(1e-4),
+                        name=conv_name_base + '2a')(input_feature)
+            else:
+                x = residual_unit(filters=filters, kernel_size=(1, 1),
+                                strides=transition_strides,
+                                dilation_rate=dilation_rate,
+                                conv_name_base=conv_name_base + '2a',
+                                bn_name_base=bn_name_base + '2a')(input_feature)
+
+            if dropout is not None:
+                x = Dropout(dropout)(x)
+
+            x = residual_unit(filters=filters, kernel_size=(3, 3),
+                            conv_name_base=conv_name_base + '2b',
+                            bn_name_base=bn_name_base + '2b')(x)
+
+            if dropout is not None:
+                x = Dropout(dropout)(x)
+
+            x = residual_unit(filters=filters * 4, kernel_size=(1, 1),
+                            conv_name_base=conv_name_base + '2c',
+                            bn_name_base=bn_name_base + '2c')(x)
+
+            return self.__shortcut(input_feature, x)
+
+        return f
+
+    # builds a residual block for resnet with repeating bottleneck blocks
+    def __residual_block(self, block_function, filters, blocks, stage, transition_strides = None, transition_dilation_rates = None,
+        dilation_rates = None, is_first_layer = False, dropout = None, residual_unit = None):
+
+        if transition_dilation_rates is None:
+            transition_dilation_rates = [(1, 1)] * blocks
+        if transition_strides is None:
+            transition_strides = [(1, 1)] * blocks
+        if dilation_rates is None:
+            dilation_rates = [1] * blocks
+
+        def f(x):
+            for i in range(blocks):
+                is_first_block = is_first_layer and i == 0
+                x = block_function(filters=filters, stage=stage, block=i,
+                                transition_strides=transition_strides[i],
+                                dilation_rate=dilation_rates[i],
+                                is_first_block_of_first_layer=is_first_block,
+                                dropout=dropout,
+                                residual_unit=residual_unit)(x)
+            return x
+
+        return f
 
     ######################################################
     ######################################################
@@ -594,9 +821,19 @@ class Models(object):
                 model.add(LeakyReLU(alpha = 0.1))
                 model.add(BatchNormalization())
 
+                # TEST added 4/8
+                model.add(Dropout(0.3))
+                model.add(Convolution2D(1024, (3,3), padding='same', use_bias=False))
+                model.add(LeakyReLU(alpha = 0.1))
+                model.add(BatchNormalization())
+                # Input dimensions: (None, 3, 3, 512)
+                model.add(Convolution2D(1024, (3,3), padding='same', use_bias=False))
+                model.add(LeakyReLU(alpha = 0.1))
+                model.add(BatchNormalization())
+
                 # Input dimensions: (None, 3, 3, 512)
                 model.add(Flatten())
-                model.add(Dense(512,activation='relu'))
+                model.add(Dense(1024,activation='relu'))
                 
                 # CDB DROPOUT INCREASED FROM 0.1 to 0.2
                 model.add(Dropout(0.15))
@@ -1814,179 +2051,6 @@ class Models(object):
         if verbose: print("Predictions completed!")
 
         return Y
-    #------------------------------------------------
-    # Kaggle2 Model 
-    #------------------------------------------------
-
-    def get_keras_kaggle2(self, X, Y, batch_size, epoch_count, val_split = 0.05, X_val = None, Y_val = None, shuffle = True, 
-        feature_name = "ALL_FEATURES", recalculate_pickle = True, full = True, verbose = False):
-
-        __MODEL_NAME = "Keras - Kaggle2"
-        __MODEL_FNAME_PREFIX = "KERAS_KAGGLE2/"
-        if full:
-            __MODEL_SUFFIX = "_30"
-        else:
-            __MODEL_SUFFIX = "_8"
-        
-        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
-        if not os.path.exists(nested_dir):
-            os.makedirs(nested_dir)
-
-        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
-        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
-        __history_params_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_params.csv"])
-        __history_performance_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_history.csv"])
-        __history_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_plot.png"])
-        __model_architecture_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_model_plot.png"])
-        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
-
-        if verbose: print("Retrieving model: %s..." % "".join([__MODEL_NAME, __MODEL_SUFFIX]))
-
-        # Create or load the model
-        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)) or recalculate_pickle:
-            if verbose: print("Pickle file for '%s' MODEL not found or skipped by caller." % feature_name)
-
-            #act = Adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-08)
-            act = 'adam'
-            #lss = losses.mean_squared_error
-            lss = 'mean_squared_error'
-            #mtrc = [metrics.RootMeanSquaredError()]
-            mtrc = ['mae','mse']
-
-            stop_at = np.max([int(0.1 * epoch_count), self.__MIN_early_stopping])
-            es = EarlyStopping(patience = stop_at, verbose = verbose)
-
-            cp = ModelCheckpoint(filepath = __model_file_name, verbose = verbose, save_best_only = True, 
-                mode = 'min', monitor = 'val_mae')
-
-            if self.__GPU_count > 1: dev = "/cpu:0"
-            else: dev = "/gpu:0"
-            with tf.device(dev):
-                model = Sequential()
-
-                # Input dimensions: (None, 96, 96, 1)
-                model.add(Convolution2D(32, (3,3), padding='valid', use_bias = True, input_shape = (96,96,1)))
-                model.add(LeakyReLU(alpha = 0.1))
-                model.add(BatchNormalization())
-                model.add(MaxPooling2D(pool_size=(2, 2)))
-                model.add(Dropout(0.2))
-
-                model.add(Convolution2D(64, (3,3), padding = 'valid', use_bias = True))
-                model.add(LeakyReLU(alpha = 0.1))
-                model.add(BatchNormalization())
-                model.add(MaxPooling2D(pool_size=(2, 2)))
-                model.add(Dropout(0.2))
-
-                model.add(Convolution2D(128, (3,3), padding = 'valid', use_bias = True))
-                model.add(LeakyReLU(alpha = 0.1))
-                model.add(BatchNormalization())
-                model.add(MaxPooling2D(pool_size=(2, 2)))
-                model.add(Dropout(0.2))
-
-                model.add(LocallyConnected2D(32, (3, 3), padding = 'valid', use_bias = True))
-                model.add(LeakyReLU(alpha = 0.1))
-                model.add(BatchNormalization())
-                model.add(GlobalAveragePooling2D())
-
-                # Input dimensions: (None, 3, 3, 512)
-                #model.add(Flatten())
-                model.add(Dense(512,activation='relu'))
-                
-                # CDB DROPOUT INCREASED FROM 0.1 to 0.2
-                model.add(Dropout(0.15))
-                if full:
-                    model.add(Dense(30))
-                else:
-                    model.add(Dense(8))
-
-            if verbose: print(model.summary())
-
-            # Compile the model
-            if self.__GPU_count > 1:
-                strategy = tf.distribute.MirroredStrategy()
-                with strategy.scope():
-                    parallel_model = multi_gpu_model(model, gpus = self.__GPU_count)
-                    parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
-            else:
-                parallel_model = model
-                parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
-
-
-            if (X_val is None) or (Y_val is None):
-                history = parallel_model.fit(X, Y, validation_split = val_split, batch_size = batch_size * self.__GPU_count, 
-                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
-            else:
-                history = parallel_model.fit(X, Y, validation_data = (X_val, Y_val), batch_size = batch_size * self.__GPU_count, 
-                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
-
-            # print and/or save a performance plot
-            self.__plot_keras_history(history = history, metric = 'mse', #metric = 'root_mean_squared_error', 
-                model_name = __MODEL_NAME, feature_name = feature_name, file_name = __history_plot_file,
-                verbose = verbose)
-            
-            # save the model, parameters, and performance history
-            model_json = parallel_model.to_json()
-            with open(__model_json_file, "w") as json_file:
-                json_file.write(model_json)
-            hist_params = pd.DataFrame(history.params)
-            hist_params.to_csv(__history_params_file)
-
-            hist = pd.DataFrame(history.history)
-            hist.to_csv(__history_performance_file)
-            if verbose: print("Model JSON, history, and parameters file saved.")
-
-            # save a plot of the model architecture
-            plot_model(parallel_model, to_file = __model_architecture_plot_file, rankdir = 'TB', 
-                show_shapes = True, show_layer_names = True, expand_nested = True, dpi=300)
-
-
-        else:
-            if verbose: print("Loading history and params files for '%s' MODEL..." % feature_name)
-            hist_params = pd.read_csv(__history_params_file)
-            hist = pd.read_csv(__history_performance_file)
-            if verbose: print("Loading pickle file for '%s' MODEL from file '%s'" % (feature_name, __model_file_name))
-            parallel_model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
-
-        return parallel_model, hist_params, hist
-
-    # inferencing
-    def predict_keras_kaggle2(self, X, feature_name = "unknown", full = True, verbose = False):
-
-        __MODEL_NAME = "Keras - Kaggle2"
-        __MODEL_FNAME_PREFIX = "KERAS_KAGGLE2/"
-        if full:
-            __MODEL_SUFFIX = "_30"
-        else:
-            __MODEL_SUFFIX = "_8"
-
-        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
-        if not os.path.exists(nested_dir):
-            raise RuntimeError("Model path '%s' does not exist; exiting inferencing." % nested_dir)
-
-        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
-        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
-
-        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
-
-        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)):## or (not os.path.isfile(__scaler_file)):
-            raise RuntimeError("One or some of the following files are missing; prediction cancelled:\n\n'%s'\n'%s'\n" % ##'%s'\n" % 
-                (__model_file_name, __model_json_file))##, __scaler_file))
-        
-        # Load the training scaler for this model
-        ##if verbose: print("Loading SCALER for '%s' and zero-centering X." % feature_name)
-        ##scaler = pickle.load(open(__scaler_file, "rb"))
-        ##X = self.__4d_Scaler(arr = X, ss = scaler, fit = False, verbose = verbose)
-
-        # load the Keras model for the specified feature
-        model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
-
-        # predict
-        if verbose: print("Predicting %d (x,y) coordinates for '%s'..." % (len(X), feature_name))
-        Y = model.predict(X, verbose = verbose)
-
-        if verbose: print("Predictions completed!")
-
-        return Y
 
     #------------------------------------------------
     # ResNet50
@@ -2145,6 +2209,495 @@ class Models(object):
 
         __MODEL_NAME = "Keras - ResNet50"
         __MODEL_FNAME_PREFIX = "KERAS_RESNET50/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            raise RuntimeError("Model path '%s' does not exist; exiting inferencing." % nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)):
+            raise RuntimeError("One or some of the following files are missing; prediction cancelled:\n\n'%s'\n'%s'\n" % 
+                (__model_file_name, __model_json_file))
+        
+        # load the Keras model for the specified feature
+        model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        # predict
+        if verbose: print("Predicting %d (x,y) coordinates for '%s'..." % (len(X), feature_name))
+        Y = model.predict(X, verbose = verbose)
+
+        if verbose: print("Predictions completed!")
+
+        return Y
+
+    #------------------------------------------------
+    # ResNet18 with V2 residual blocks (modified)
+    # Inspired by: https://arxiv.org/abs/1512.03385
+    #------------------------------------------------
+
+    def get_keras_resnet(self, X, Y, batch_size, epoch_count, val_split = 0.1, X_val = None, Y_val = None, shuffle = True, 
+        feature_name = "ALL_FEATURES", recalculate_pickle = True, full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNet"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNET/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+        
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            os.makedirs(nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+        __history_params_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_params.csv"])
+        __history_performance_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_history.csv"])
+        __history_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_plot.png"])
+        __model_architecture_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_model_plot.png"])
+        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
+
+        if verbose: print("Retrieving model: %s..." % "".join([__MODEL_NAME, __MODEL_SUFFIX]))
+
+        # Create or load the model
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)) or recalculate_pickle:
+            if verbose: print("Pickle file for '%s' MODEL not found or skipped by caller." % feature_name)
+
+            #act = Adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-08)
+            act = 'adam'
+            #lss = losses.mean_squared_error
+            lss = 'mean_squared_error'
+            #mtrc = [metrics.RootMeanSquaredError()]
+            mtrc = ['mae','mse']
+
+            stop_at = np.max([int(0.1 * epoch_count), self.__MIN_early_stopping])
+            es = EarlyStopping(patience = stop_at, verbose = verbose)
+
+            cp = ModelCheckpoint(filepath = __model_file_name, verbose = verbose, save_best_only = True, 
+                mode = 'min', monitor = 'val_mae')
+
+            if self.__GPU_count > 1: dev = "/cpu:0"
+            else: dev = "/gpu:0"
+            with tf.device(dev):
+
+                # Input image shape (H, W, C)
+                #residual_unit = self.__bn_relu_conv
+                #block_fn = self.__basic_block
+                dropout = None
+                input_img = Input(shape = (96, 96, 1))
+                
+                reps = [2,2,2,2]  # <-- ResNet18v2
+                #reps = [3,4,6,3]  # <-- ResNet34v2
+
+                # Begin ResNet34v2
+                x = self.__conv_bn_relu(filters = 64, kernel_size = (7, 7), strides = (2, 2)) (input_img)
+                x = MaxPooling2D(pool_size = (3, 3), strides = (2, 2), padding = 'same') (x)
+
+                block, filters = x, 64
+                for i, r in enumerate(reps):
+                    transition_dilation_rates = [(1,1)] * r
+                    transition_strides = [(1,1)] * r
+                    transition_strides[0] = (2,2)
+                    if i % 2 == 1:
+                        use_block = self.__bottleneck
+                    else:
+                        use_block = self.__basic_block
+                    block = self.__residual_block(use_block, filters = filters,
+                                            stage = i, blocks = r,
+                                            is_first_layer=(i == 0),
+                                            dropout = None,
+                                            transition_dilation_rates = transition_dilation_rates,
+                                            transition_strides = transition_strides,
+                                            residual_unit = self.__bn_relu_conv) (block)
+                    filters *= 2
+
+                # Last activation
+                x = self.__bn_relu(block)
+
+                x = GlobalAveragePooling2D(name = 'avg_pool')(x)
+                if full:
+                    x = Dense(30, name = 'fc30') (x)
+                else:
+                    x = Dense(8, name = 'fc8') (x)
+                
+                model = Model(input_img, x, name = 'resnet18v2')
+
+            if verbose: print(model.summary())
+
+            # Compile the model
+            if self.__GPU_count > 1:
+                strategy = tf.distribute.MirroredStrategy()
+                with strategy.scope():
+                    parallel_model = multi_gpu_model(model, gpus = self.__GPU_count)
+                    parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+            else:
+                parallel_model = model
+                parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+
+
+            if (X_val is None) or (Y_val is None):
+                history = parallel_model.fit(X, Y, validation_split = val_split, batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+            else:
+                history = parallel_model.fit(X, Y, validation_data = (X_val, Y_val), batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+
+            # print and/or save a performance plot
+            self.__plot_keras_history(history = history, metric = 'mse', #metric = 'root_mean_squared_error', 
+                model_name = __MODEL_NAME, feature_name = feature_name, file_name = __history_plot_file,
+                verbose = verbose)
+            
+            # save the model, parameters, and performance history
+            model_json = parallel_model.to_json()
+            with open(__model_json_file, "w") as json_file:
+                json_file.write(model_json)
+            hist_params = pd.DataFrame(history.params)
+            hist_params.to_csv(__history_params_file)
+
+            hist = pd.DataFrame(history.history)
+            hist.to_csv(__history_performance_file)
+            if verbose: print("Model JSON, history, and parameters file saved.")
+
+            # save a plot of the model architecture
+            plot_model(parallel_model, to_file = __model_architecture_plot_file, rankdir = 'TB', 
+                show_shapes = True, show_layer_names = True, expand_nested = True, dpi=300)
+
+
+        else:
+            if verbose: print("Loading history and params files for '%s' MODEL..." % feature_name)
+            hist_params = pd.read_csv(__history_params_file)
+            hist = pd.read_csv(__history_performance_file)
+            if verbose: print("Loading pickle file for '%s' MODEL from file '%s'" % (feature_name, __model_file_name))
+            parallel_model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        return parallel_model, hist_params, hist
+
+    # inferencing
+    def predict_keras_resnet(self, X, feature_name = "unknown", full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNet"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNET/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            raise RuntimeError("Model path '%s' does not exist; exiting inferencing." % nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)):
+            raise RuntimeError("One or some of the following files are missing; prediction cancelled:\n\n'%s'\n'%s'\n" % 
+                (__model_file_name, __model_json_file))
+        
+        # load the Keras model for the specified feature
+        model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        # predict
+        if verbose: print("Predicting %d (x,y) coordinates for '%s'..." % (len(X), feature_name))
+        Y = model.predict(X, verbose = verbose)
+
+        if verbose: print("Predictions completed!")
+
+        return Y
+
+    #------------------------------------------------
+    # ResNeXt50
+    # Inspired by: https://arxiv.org/abs/1611.05431
+    #------------------------------------------------
+
+    def get_keras_resnext50(self, X, Y, batch_size, epoch_count, val_split = 0.1, X_val = None, Y_val = None, shuffle = True, 
+        feature_name = "ALL_FEATURES", recalculate_pickle = True, full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNeXt"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNEXT50/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+        
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            os.makedirs(nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+        __history_params_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_params.csv"])
+        __history_performance_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_history.csv"])
+        __history_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_plot.png"])
+        __model_architecture_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_model_plot.png"])
+        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
+
+        if verbose: print("Retrieving model: %s..." % "".join([__MODEL_NAME, __MODEL_SUFFIX]))
+
+        # Create or load the model
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)) or recalculate_pickle:
+            if verbose: print("Pickle file for '%s' MODEL not found or skipped by caller." % feature_name)
+
+            #act = Adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-08)
+            act = 'adam'
+            #lss = losses.mean_squared_error
+            lss = 'mean_squared_error'
+            #mtrc = [metrics.RootMeanSquaredError()]
+            mtrc = ['mae','mse']
+
+            stop_at = np.max([int(0.1 * epoch_count), self.__MIN_early_stopping])
+            es = EarlyStopping(patience = stop_at, verbose = verbose)
+
+            cp = ModelCheckpoint(filepath = __model_file_name, verbose = verbose, save_best_only = True, 
+                mode = 'min', monitor = 'val_mae')
+            dropout = None
+
+            if self.__GPU_count > 1: dev = "/cpu:0"
+            else: dev = "/gpu:0"
+            with tf.device(dev):
+
+                # Input image shape (H, W, C)
+                input_img = Input(shape = (96, 96, 1))
+
+                # Begin ResNeXt50
+                x = ZeroPadding2D(padding = ((3, 3), (3, 3)), name = 'conv1_pad') (input_img)
+                x = Conv2D(64, 7, strides = 2, use_bias = False, name = 'conv1_conv') (x)
+                x = BatchNormalization(axis = 3, epsilon=1.001e-5, name='conv1_bn') (x)
+                x = Activation('relu', name = 'conv1_relu') (x)
+                x = ZeroPadding2D(padding = ((1, 1), (1, 1)), name = 'pool1_pad') (x)
+                x = MaxPooling2D(3, strides = 2, name = 'pool1_pool') (x)
+
+                # Build ResNeXt50 blocks (3, 4, 6, 3)
+                x = self.__resnext_stack(x, filters = 128, blocks = 3, stride1 = 1, name = "conv2", dropout = dropout)
+                x = self.__resnext_stack(x, filters = 256, blocks = 4, name = "conv3", dropout = dropout)
+                x = self.__resnext_stack(x, filters = 512, blocks = 6, name = "conv4", dropout = dropout)
+                x = self.__resnext_stack(x, filters = 1024, blocks = 3, name = "conv5", dropout = dropout)
+
+                x = GlobalAveragePooling2D(name = 'avg_pool') (x)
+                if full:
+                    x = Dense(30, name='fc1000') (x)
+                else:
+                    x = Dense(8, name='fc1000') (x)
+                
+                model = Model(input_img, x, name = 'resnext50')
+
+            if verbose: print(model.summary())
+
+            # Compile the model
+            if self.__GPU_count > 1:
+                strategy = tf.distribute.MirroredStrategy()
+                with strategy.scope():
+                    parallel_model = multi_gpu_model(model, gpus = self.__GPU_count)
+                    parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+            else:
+                parallel_model = model
+                parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+
+
+            if (X_val is None) or (Y_val is None):
+                history = parallel_model.fit(X, Y, validation_split = val_split, batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+            else:
+                history = parallel_model.fit(X, Y, validation_data = (X_val, Y_val), batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+
+            # print and/or save a performance plot
+            self.__plot_keras_history(history = history, metric = 'mse', #metric = 'root_mean_squared_error', 
+                model_name = __MODEL_NAME, feature_name = feature_name, file_name = __history_plot_file,
+                verbose = verbose)
+            
+            # save the model, parameters, and performance history
+            model_json = parallel_model.to_json()
+            with open(__model_json_file, "w") as json_file:
+                json_file.write(model_json)
+            hist_params = pd.DataFrame(history.params)
+            hist_params.to_csv(__history_params_file)
+
+            hist = pd.DataFrame(history.history)
+            hist.to_csv(__history_performance_file)
+            if verbose: print("Model JSON, history, and parameters file saved.")
+
+            # save a plot of the model architecture
+            plot_model(parallel_model, to_file = __model_architecture_plot_file, rankdir = 'TB', 
+                show_shapes = True, show_layer_names = True, expand_nested = True, dpi=300)
+
+        else:
+            if verbose: print("Loading history and params files for '%s' MODEL..." % feature_name)
+            hist_params = pd.read_csv(__history_params_file)
+            hist = pd.read_csv(__history_performance_file)
+            if verbose: print("Loading pickle file for '%s' MODEL from file '%s'" % (feature_name, __model_file_name))
+            parallel_model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        return parallel_model, hist_params, hist
+
+    # inferencing
+    def predict_keras_resnext50(self, X, feature_name = "unknown", full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNeXt"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNEXT50/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            raise RuntimeError("Model path '%s' does not exist; exiting inferencing." % nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)):
+            raise RuntimeError("One or some of the following files are missing; prediction cancelled:\n\n'%s'\n'%s'\n" % 
+                (__model_file_name, __model_json_file))
+        
+        # load the Keras model for the specified feature
+        model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        # predict
+        if verbose: print("Predicting %d (x,y) coordinates for '%s'..." % (len(X), feature_name))
+        Y = model.predict(X, verbose = verbose)
+
+        if verbose: print("Predictions completed!")
+
+        return Y
+
+#------------------------------------------------
+    # ResNeXt50
+    # Inspired by: https://arxiv.org/abs/1611.05431
+    #------------------------------------------------
+
+    def get_keras_resnext101(self, X, Y, batch_size, epoch_count, val_split = 0.1, X_val = None, Y_val = None, shuffle = True, 
+        feature_name = "ALL_FEATURES", recalculate_pickle = True, full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNeXt"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNEXT101/"
+        if full:
+            __MODEL_SUFFIX = "_30"
+        else:
+            __MODEL_SUFFIX = "_8"
+        
+        nested_dir = "".join([self.__models_path,__MODEL_FNAME_PREFIX])
+        if not os.path.exists(nested_dir):
+            os.makedirs(nested_dir)
+
+        __model_file_name = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".h5"])
+        __model_json_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, ".json"])
+        __history_params_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_params.csv"])
+        __history_performance_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_history.csv"])
+        __history_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_plot.png"])
+        __model_architecture_plot_file = "".join([nested_dir, feature_name, __MODEL_SUFFIX, "_model_plot.png"])
+        ##__scaler_file = "".join([nested_dir, feature_name, "_scaler.pkl"])
+
+        if verbose: print("Retrieving model: %s..." % "".join([__MODEL_NAME, __MODEL_SUFFIX]))
+
+        # Create or load the model
+        if (not os.path.isfile(__model_file_name)) or (not os.path.isfile(__model_json_file)) or recalculate_pickle:
+            if verbose: print("Pickle file for '%s' MODEL not found or skipped by caller." % feature_name)
+
+            #act = Adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-08)
+            act = 'adam'
+            #lss = losses.mean_squared_error
+            lss = 'mean_squared_error'
+            #mtrc = [metrics.RootMeanSquaredError()]
+            mtrc = ['mae','mse']
+
+            stop_at = np.max([int(0.1 * epoch_count), self.__MIN_early_stopping])
+            es = EarlyStopping(patience = stop_at, verbose = verbose)
+
+            cp = ModelCheckpoint(filepath = __model_file_name, verbose = verbose, save_best_only = True, 
+                mode = 'min', monitor = 'val_mae')
+            dropout = None
+
+            if self.__GPU_count > 1: dev = "/cpu:0"
+            else: dev = "/gpu:0"
+            with tf.device(dev):
+
+                # Input image shape (H, W, C)
+                input_img = Input(shape = (96, 96, 1))
+
+                # Begin ResNeXt50
+                x = ZeroPadding2D(padding = ((3, 3), (3, 3)), name = 'conv1_pad') (input_img)
+                x = Conv2D(64, 7, strides = 2, use_bias = False, name = 'conv1_conv') (x)
+                x = BatchNormalization(axis = 3, epsilon=1.001e-5, name='conv1_bn') (x)
+                x = Activation('relu', name = 'conv1_relu') (x)
+                x = ZeroPadding2D(padding = ((1, 1), (1, 1)), name = 'pool1_pad') (x)
+                x = MaxPooling2D(3, strides = 2, name = 'pool1_pool') (x)
+
+                # Build ResNeXt50 blocks (3, 4, 6, 3)
+                # Build ResNeXt101 blocks (3, 4, 23, 3)
+                x = self.__resnext_stack(x, filters = 128, blocks = 3, stride1 = 1, name = "conv2", dropout = dropout)
+                x = self.__resnext_stack(x, filters = 256, blocks = 4, name = "conv3", dropout = dropout)
+                x = self.__resnext_stack(x, filters = 512, blocks = 23, name = "conv4", dropout = dropout)
+                x = self.__resnext_stack(x, filters = 1024, blocks = 3, name = "conv5", dropout = dropout)
+
+                x = GlobalAveragePooling2D(name = 'avg_pool') (x)
+                if full:
+                    x = Dense(30, name='fc1000') (x)
+                else:
+                    x = Dense(8, name='fc1000') (x)
+                
+                model = Model(input_img, x, name = 'resnext50')
+
+            if verbose: print(model.summary())
+
+            # Compile the model
+            if self.__GPU_count > 1:
+                strategy = tf.distribute.MirroredStrategy()
+                with strategy.scope():
+                    parallel_model = multi_gpu_model(model, gpus = self.__GPU_count)
+                    parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+            else:
+                parallel_model = model
+                parallel_model.compile(optimizer = act, loss = lss, metrics = mtrc)
+
+
+            if (X_val is None) or (Y_val is None):
+                history = parallel_model.fit(X, Y, validation_split = val_split, batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+            else:
+                history = parallel_model.fit(X, Y, validation_data = (X_val, Y_val), batch_size = batch_size * self.__GPU_count, 
+                    epochs = epoch_count, shuffle = shuffle, callbacks = [es, cp], verbose = verbose)
+
+            # print and/or save a performance plot
+            self.__plot_keras_history(history = history, metric = 'mse', #metric = 'root_mean_squared_error', 
+                model_name = __MODEL_NAME, feature_name = feature_name, file_name = __history_plot_file,
+                verbose = verbose)
+            
+            # save the model, parameters, and performance history
+            model_json = parallel_model.to_json()
+            with open(__model_json_file, "w") as json_file:
+                json_file.write(model_json)
+            hist_params = pd.DataFrame(history.params)
+            hist_params.to_csv(__history_params_file)
+
+            hist = pd.DataFrame(history.history)
+            hist.to_csv(__history_performance_file)
+            if verbose: print("Model JSON, history, and parameters file saved.")
+
+            # save a plot of the model architecture
+            plot_model(parallel_model, to_file = __model_architecture_plot_file, rankdir = 'TB', 
+                show_shapes = True, show_layer_names = True, expand_nested = True, dpi=300)
+
+        else:
+            if verbose: print("Loading history and params files for '%s' MODEL..." % feature_name)
+            hist_params = pd.read_csv(__history_params_file)
+            hist = pd.read_csv(__history_performance_file)
+            if verbose: print("Loading pickle file for '%s' MODEL from file '%s'" % (feature_name, __model_file_name))
+            parallel_model = self.__load_keras_model(__MODEL_NAME, __model_file_name, __model_json_file, verbose = verbose)
+
+        return parallel_model, hist_params, hist
+
+    # inferencing
+    def predict_keras_resnext101(self, X, feature_name = "unknown", full = True, verbose = False):
+
+        __MODEL_NAME = "Keras - ResNeXt"
+        __MODEL_FNAME_PREFIX = "KERAS_RESNEXT101/"
         if full:
             __MODEL_SUFFIX = "_30"
         else:

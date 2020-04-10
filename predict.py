@@ -27,7 +27,7 @@ VERBOSE = True
 USE30 = True
 
 # Processing behavior (constants)
-AVAILABLE_MODELS = ["KERAS_LENET5", "KERAS_INCEPTION", "KERAS_KAGGLE1", "KERAS_NAIMISHNET", "KERAS_CONVNET5", "KERAS_INCEPTIONV3", "KERAS_KAGGLE2", "KERAS_RESNET50", "KERAS_RESNET", "KERAS_RESNEXT50"]
+AVAILABLE_MODELS = ["KERAS_LENET5", "KERAS_INCEPTION", "KERAS_KAGGLE1", "KERAS_NAIMISHNET", "KERAS_CONVNET5", "KERAS_INCEPTIONV3", "KERAS_KAGGLE2", "KERAS_RESNET50", "KERAS_RESNET", "KERAS_RESNEXT50", "KERAS_RESNEXT101"]
 TEST_DATA_FILE = "cleandata_naive_test.pkl"
 TEST_IDS_FILE = "raw_id_lookup.pkl"
 OVERLAP_FILE = "cleandata_naive_overlap.pkl"
@@ -159,6 +159,11 @@ def predict_model(model_path, pickle_path, model_name, normalize_labels, test, i
     elif model_name == "KERAS_RESNEXT50":
         feature_name = "ALL_FEATURES"
         pred = predict_model_resnext50(models = models, xform = xform, test = test, ids = ids, 
+            feature_name = feature_name, full = full, verbose = verbose)
+
+    elif model_name == "KERAS_RESNEXT101":
+        feature_name = "ALL_FEATURES"
+        pred = predict_model_resnext101(models = models, xform = xform, test = test, ids = ids, 
             feature_name = feature_name, full = full, verbose = verbose)
 
     elif model_name == "KERAS_RESNET":
@@ -341,6 +346,19 @@ def predict_model_resnext50(models, xform, test, ids, feature_name, full = True,
 #%%
 
 ############################################################################
+# PREDICT MODEL RESNEXT101
+############################################################################
+
+def predict_model_resnext101(models, xform, test, ids, feature_name, full = True, verbose = True):
+
+    X, _ = xform.PrepareTest(test = test, ids = ids, feature_name = feature_name, verbose = verbose)
+    Y = models.predict_keras_resnext101(X = X, feature_name = feature_name, full = full, verbose = verbose)
+
+    return Y
+
+#%%
+
+############################################################################
 # PREDICT MODEL CONVNET5
 ############################################################################
 
@@ -383,7 +401,7 @@ def output_stack(model_path, model_name, Y, feature_name, test, ids, predict_fil
             'mouth_center_bottom_lip_x', 'mouth_center_bottom_lip_y', 'image']
     
     # generate output for LeNet, Kaggle1, Kaggle2, ConvNet, InceptionV3, and ResNet50
-    if model_name in ['KERAS_LENET5', 'KERAS_KAGGLE1', 'KERAS_KAGGLE2', 'KERAS_CONVNET5', 'KERAS_INCEPTIONV3', 'KERAS_RESNET50', 'KERAS_RESNET', 'KERAS_RESNEXT50']:
+    if model_name in ['KERAS_LENET5', 'KERAS_KAGGLE1', 'KERAS_KAGGLE2', 'KERAS_CONVNET5', 'KERAS_INCEPTIONV3', 'KERAS_RESNET50', 'KERAS_RESNET', 'KERAS_RESNEXT50', 'KERAS_RESNEXT101']:
 
         Y = pd.DataFrame(Y, columns = [c for c in train_cols if not 'image' == c], index = test.image_id.values)
         Y.index.rename('image_id', inplace = True)
@@ -462,7 +480,7 @@ def output_prediction(model_path, model_name, Y, feature_name, test, ids, predic
             'mouth_center_bottom_lip_x', 'mouth_center_bottom_lip_y', 'image']
 
     # generate output for LENET5, CONVNET5, KAGGLE1, KAGGLE2, INCEPTIONV3, RESNET50, and for our stacking METAREGRESSOR_LINEAR
-    if model_name in ['KERAS_LENET5', 'KERAS_KAGGLE1', 'KERAS_KAGGLE2', 'KERAS_CONVNET5', 'METAREGRESSOR_LINEAR', 'KERAS_INCEPTIONV3', 'KERAS_RESNET50', 'KERAS_RESNET', 'KERAS_RESNEXT50']:
+    if model_name in ['KERAS_LENET5', 'KERAS_KAGGLE1', 'KERAS_KAGGLE2', 'KERAS_CONVNET5', 'METAREGRESSOR_LINEAR', 'KERAS_INCEPTIONV3', 'KERAS_RESNET50', 'KERAS_RESNET', 'KERAS_RESNEXT50', 'KERAS_RESNEXT101']:
 
         Y = pd.DataFrame(Y, columns = [c for c in train_cols if not 'image' == c], index = test.image_id.values)
         Y = pd.melt(Y.reset_index(), id_vars=['index'])
