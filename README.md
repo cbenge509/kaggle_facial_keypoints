@@ -28,7 +28,7 @@ This repo contains a solution for the [Kaggle Facial Keypoints Detection](https:
   |:----|:------------|
   |[Facial Keypoints - EDA.ipynb](Facial%20Keypoints%20-%20EDA.ipynb) | Jupyter Notebook containing exploratory data analysis findings of the competition data.|
   |[Presentation](/presentation/King_Benge_W207_Final.py) | Presentation of high-level approach and results|
-    |[prepare_data.py](prepare_data.py) | Performs preprocessing of TRAIN and TEST datasets.|
+  |[prepare_data.py](prepare_data.py) | Performs preprocessing of TRAIN and TEST datasets.|
   |[train_model.py](train_model.py) | Trains one or more models based on user-provided arguments.|
   |[predict.py](predict.py) | Predict from last trained version of one or more user-specified models.|
   |[train_stack.py](train_stack.py) | Performs K-Fold generalized stacking using the user-specified models.|
